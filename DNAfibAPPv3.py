@@ -210,12 +210,15 @@ app.layout=html.Div([
                                     
                                     dcc.Dropdown(color_options, 
                                                  color_types[0],
+                                                 searchable=False, 
+                                                 clearable=False,
                                                  id='color_label-dropdown')
                                     
                                 ]),
                                 
                                 html.H6('Corrosponding Schema', 
-                                        style={'paddingTop' : 15}),
+                                        style={'paddingTop' : 15,
+                                               'paddingBottom' : 15}),
                                 
                                 html.Img(id='schema', 
                                          style={'height':'100%', 
@@ -470,17 +473,23 @@ app.layout=html.Div([
                                                 dcc.Dropdown(
                                                     ['Rectangle', 'Lasso', 'Line'], 
                                                     'Rectangle', 
+                                                    clearable=False,
+                                                    searchable=False,
                                                     id='method-dropdown'),
                                                       
                                             html.H6('DNA fiber type',
-                                                    style={'paddingTop' : 15}),
+                                                    style={'paddingTop' : 10}),
                                                 
                                                 dcc.Dropdown(
                                                     fiber_dropdown_images('R','G'),
                                                     DNA_fiber_types[0], 
+                                                    clearable=False,
+                                                    searchable=False,
                                                     id='fiber-dropdown')
                                             
-                                        ], style={'width': '240px','paddingRight' : 30}),
+                                        ], style={'width': '256px',
+                                                  'paddingRight' : 25,
+                                                  'paddingBottom' : 20}),
                                         
                                         html.Div([
                                             
@@ -496,7 +505,7 @@ app.layout=html.Div([
                                                       style={"width": 70}),
                                             
                                             html.H6('Max fiber width', 
-                                                    style={'paddingTop' : 14}),
+                                                    style={'paddingTop' : 9}),
                                             
                                             dbc.Input(type="number",
                                                       id="max_fw",
@@ -506,7 +515,7 @@ app.layout=html.Div([
                                                       style={"width": 70}),
                                             
                                             
-                                        ], style={'paddingRight' : 30}),
+                                        ], style={'paddingRight' : 25}),
                                         
                                         html.Div([
                                             
@@ -520,7 +529,7 @@ app.layout=html.Div([
                                                 style={"width": 110, "height": 35}),
                                             
                                             html.H6('Show overlay', 
-                                                    style={'paddingTop' : 17,
+                                                    style={'paddingTop' : 11,
                                                            'paddingBottom' : 5}),
                                             
                                             daq.BooleanSwitch(id='overlay-switch',
@@ -534,7 +543,22 @@ app.layout=html.Div([
                                 
                                 html.Div([
                                     
-                                    html.H6('Selected Fiber Data Table', style={'paddingTop' : 15}),
+                                    html.Div([
+                                        
+                                        html.H6('Selected Fiber Data Table', 
+                                                style={'paddingBottom' : 20,
+                                                       'paddingRight' : 80}),
+                                    
+                                        html.Div([
+                                            
+                                                dmc.Button("Download CSV", 
+                                                           id="btn_csv"),
+                                                                          
+                                                dcc.Download(id="download-dataframe-csv"),
+                                                
+                                        ],style={'paddingTop' : 4})
+
+                                    ], className='flex-container'),
                                     
                                     dash_table.DataTable(
                                         id="annotations-table",
@@ -550,7 +574,7 @@ app.layout=html.Div([
                                         fill_width=True,
                                         page_action="native",
                                         page_current=0,
-                                        page_size=10,
+                                        page_size=9,
                                         style_data={"height": 15},
                                         style_cell={
                                             "textAlign": "left",
@@ -559,7 +583,7 @@ app.layout=html.Div([
                                             "maxWidth": 0,
                                         }
                                     
-                                    )
+                                    ),
                                     
                                 ])
                                 
@@ -630,7 +654,7 @@ app.layout=html.Div([
                                   config={'displayModeBar' : False})
                         
                     )
-                )
+                ),
                 
             ], style={'width': '128px','paddingRight' : 20}
                 
@@ -1025,11 +1049,13 @@ def selection_fiber_image(fig_data, fig, tab, shape_coords):
         
         out_img=imo.crop_operation(x0,x1,y0,y1)
         out_image_fig=px.imshow(out_img)
+        
         out_image_fig.update_layout(height=750,
             coloraxis_showscale=False, 
             margin=dict(l=0, r=0, b=0, t=0)
         )
         
+        out_image_fig.update_traces(hoverinfo='none', hovertemplate='')
         out_image_fig.update_xaxes(showticklabels=False)
         out_image_fig.update_yaxes(showticklabels=False)
         out_image_fig.update_layout(dragmode=False)
