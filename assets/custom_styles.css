@@ -50,3 +50,21 @@ a.modebar-btn {
   width: 540px;
   padding-top: 50px;
 }
+
+.flex-text_0-9 {
+  position: relative;
+  bottom: 9px;
+  right: 3px;
+}
+
+.flex-text_10-99 {
+  position: relative;
+  bottom: 9px;
+  right: 7px;
+}
+
+.flex-text_99-plus {
+  position: relative;
+  bottom: 9px;
+  right: 11px;
+}

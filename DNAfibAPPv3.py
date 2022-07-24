@@ -23,6 +23,7 @@ import pandas as pd
 import plotly.express as px
 import re
 from skimage import io
+import skimage.transform
 
 from ImageOPs import (ImageOperations, parse_contents, blank_fig)
 
@@ -134,14 +135,25 @@ fig.update_xaxes(showticklabels=False)
 fig.update_yaxes(showticklabels=False)
 fig.update_layout(dragmode=False)
 
+legend = ("Segments abbreviations: \n\nG = green, R = red, B = blue, "
+          "M = magenta, C = cyan, Y = yellow, \nOV = overlap, "
+          "GP = gap, : = new segment\n\n")
+
 app.layout=html.Div([
     
-    html.Meta(charSet='UTF-8'),
-    html.Meta(name='viewport', 
-              content='width=device-width, initial-scale=1.0'),
-    
-    dcc.Store(id='shape_coords', storage_type='memory'), 
-    dcc.Store(id='shape_number', storage_type='memory'), 
+        html.Meta(charSet='UTF-8'),
+        html.Meta(name='viewport', 
+                  content='width=device-width, initial-scale=1.0'),
+        
+        dcc.Store(id='shape_coords', storage_type='memory'), 
+        dcc.Store(id='shape_number', storage_type='memory'),
+        dcc.Store(id='im_rotation', storage_type='memory', data = 0),
+        dcc.Store(id='im_flip', storage_type='memory', data = [False,False]),
+        
+        dcc.Download(id="download-dataframe-csv"),
+        dcc.Download(id="download-plot-Image"),
+        dcc.Download(id="download-sel-current"),
+        dcc.Download(id="download-sel-all"),
 
         html.Div([
             
@@ -348,76 +360,98 @@ app.layout=html.Div([
                                         
                                         html.H6('Rotate Image', 
                                                 style={'paddingTop' : 15,
+                                                       'paddingLeft' : 10,
                                                        'textAlign':'center',
-                                                       'height' : 40,
+                                                       'height' : 35,
                                                        'width' : 200}),
                                         
                                         html.Div([
-                                        
-                                            dmc.Button(id='rotate_left',
-                                                       radius= 1,
-                                                       size = 'xs',
-                                                       style={'width' : 55},
-                                                       leftIcon=[
-                                                            DashIconify(
-                                                            icon="carbon:rotate-counterclockwise-alt",
-                                                            width=35,
-                                                            style={'paddingLeft' : 10})
-                                                        ]),
-                                            
-                                            dmc.Button(id='rotate_right',
-                                                       radius= 1,
-                                                       size = 'xs',
-                                                       style={'width' : 55},
-                                                       leftIcon=[
-                                                            DashIconify(
-                                                            icon="carbon:rotate-clockwise-alt",
-                                                            width=35,
-                                                            style={'paddingLeft' : 10})
-                                                        ]),
-                                            
-                                            dmc.Button(id='flip_hor',
-                                                       radius= 1,
-                                                       size = 'xs',
-                                                       style={'width' : 55},
-                                                       leftIcon=[
-                                                            DashIconify(
-                                                            icon="eva:flip-2-fill",
-                                                            width=30,
-                                                            style={'paddingLeft' : 10})
-                                                        ]),
-                                            
-                                            dmc.Button(id='flip_ver',
-                                                       radius= 1,
-                                                       size = 'xs',
-                                                       style={'width' : 55},
-                                                       leftIcon=[
-                                                            DashIconify(
-                                                            id='rotate_left',
-                                                            icon="eva:flip-fill",
-                                                            width=29,
-                                                            style={'paddingLeft' : 10})
-                                                        ])
-                                        
-                                        ], style={'paddingBottom' : 15,
-                                                  'height' : 30,
-                                                  'width' : 200,
-                                                  'display':'flex',
-                                                  'justify-content':'space-around'}),
-                                        
                                                   
-                                        html.Div([
-                                                  
-                                            daq.Knob(id='rotate-knob',
+                                            daq.Knob(id='rotate_knob',
                                                      min = -150,
                                                      max = 150,
-                                                     size = 120, 
+                                                     size = 110, 
                                                      value = 0,
                                                      color = '#e6e6e6',
+                                                     
                                                      scale={'labelInterval': 1, 
                                                             'interval': 30})
                                         
-                                        ], style={'textAlign' : 'center'})
+                                        ], style={'height' : 150,
+                                                  'paddingLeft' : 10}),
+                                        
+                                        dmc.Group(grow = True, children = [
+                                        
+                                            dmc.ActionIcon(
+                                                
+                                                DashIconify(
+                                                    icon="charm:rotate-anti-clockwise",
+                                                    width=20),
+                                                
+                                                id='rotate_left',
+                                                radius= 6,
+                                                size = 'md',
+                                                color="blue", 
+                                                variant="filled",
+                                                style={'width' : 52}
+                                                
+                                            ),
+                                            
+                                            dmc.ActionIcon(
+                                                
+                                                DashIconify(
+                                                    icon="charm:rotate-clockwise",
+                                                    width=20),
+                                                
+                                                id='rotate_right',
+                                                radius= 6,
+                                                size = 'md',
+                                                color="blue", 
+                                                variant="filled",
+                                                style={'width' : 52}
+                                            
+                                            ),
+                                            
+                                            dmc.ActionIcon(
+                                                
+                                                DashIconify(
+                                                    icon="eva:flip-2-fill",
+                                                    width=22),
+                                                
+                                                id='flip_hor',
+                                                radius=6,
+                                                size = 'md',
+                                                color="blue", 
+                                                variant="filled",
+                                                style={'width' : 52}
+                                                
+                                            ),
+                                            
+                                            dmc.ActionIcon(
+                                                
+                                                DashIconify(
+                                                     icon="eva:flip-fill",
+                                                     width=22),
+                                                
+                                                id='flip_ver',
+                                                radius=6,
+                                                size = 'md',
+                                                color="blue", 
+                                                variant="filled",
+                                                style={'width' : 52}
+                                                       
+                                            )
+                                        
+                                        ], style={'paddingTop' : 18,
+                                                  'paddingBottom' : 55,
+                                                  'height' : 30,
+                                                  'width' : 200,
+                                                  'display':'flex',
+                                                  'textAlign': 'center',
+                                                  'justify-content':'space-around'}),
+                                        
+                                                  
+
                                     ]),
 
                                 ], style={'display':'flex',
@@ -467,45 +501,98 @@ app.layout=html.Div([
                                         
                                         html.Div([
                                             
-                                            html.H6('Selection type', 
-                                                    style={'paddingTop' : 15}),
+                                            dmc.Tooltip(
+                                                withArrow=True,
+                                                position="bottom",
+                                                placement="start",
+                                                transition="fade",
+                                                transitionDuration=200,
+                                                arrowSize = 5,
+                                                label='Changes will reset data table',
                                                 
-                                                dcc.Dropdown(
-                                                    ['Rectangle', 'Lasso', 'Line'], 
-                                                    'Rectangle', 
-                                                    clearable=False,
-                                                    searchable=False,
-                                                    id='method-dropdown'),
+                                                children=[
+                                                    
+                                                    html.H6('Selection type', 
+                                                            style={'paddingTop' : 15}),
+                                                    
+                                                ]),
+                                            
+                                            dcc.Dropdown(
+                                                ['Rectangle','Lasso','Line'],
+                                                'Rectangle', 
+                                                clearable=False,
+                                                searchable=False,
+                                                id='method-dropdown'),
                                                       
                                             html.H6('DNA fiber type',
                                                     style={'paddingTop' : 10}),
                                                 
-                                                dcc.Dropdown(
-                                                    fiber_dropdown_images('R','G'),
-                                                    DNA_fiber_types[0], 
-                                                    clearable=False,
-                                                    searchable=False,
-                                                    id='fiber-dropdown')
+                                            dcc.Dropdown(
+                                                fiber_dropdown_images('R','G'),
+                                                DNA_fiber_types[0], 
+                                                clearable=False,
+                                                searchable=False,
+                                                id='fiber-dropdown'),
+                                            
+                                            html.Div([
+                                            
+                                                dmc.Tooltip(
+                                                    wrapLines=True,
+                                                    width=540,
+                                                    withArrow=True,
+                                                    position="bottom",
+                                                    placement="end",
+                                                    transition="fade",
+                                                    transitionDuration=200,
+                                                    gutter = 10,
+                                                    arrowSize = 5,
+                                                    label=legend,
+                                                    
+                                                    children=[
+                                                        
+                                                        dmc.Button("Fiber table",
+                                                                   size='xl',
+                                                                   style={'width' : 230},
+                                                                   leftIcon=[DashIconify(
+                                                        icon="fluent:table-settings-28-filled")])
+                                                        
+                                                    ])
+                                            
+                                            ],style={'paddingTop' : 32})
                                             
                                         ], style={'width': '256px',
-                                                  'paddingRight' : 25,
-                                                  'paddingBottom' : 20}),
+                                                  'paddingRight' : 20,
+                                                  'paddingBottom' : 18}),
                                         
                                         html.Div([
                                             
-                                            html.H6('Border width', 
-                                                    style={'paddingTop' : 14}),
+                                            dmc.Tooltip(
+                                                withArrow=True,
+                                                position="bottom",
+                                                placement="start",
+                                                transition="fade",
+                                                transitionDuration=200,
+                                                arrowSize = 5,
+                                                label='Changes will reset data table',
+                                                
+                                                children=[
+                                                    
+                                                    html.H6('Border width', 
+                                                            style={'paddingTop' : 14}),
+                                                    
+                                                ]),
                                             
                                             dbc.Input(type="number",
                                                       id="border_w",
                                                       min=0.25,
                                                       max=3, 
                                                       step=0.25,
-                                                      value=0.5,
+                                                      value=1.5,
                                                       style={"width": 70}),
                                             
                                             html.H6('Max fiber width', 
-                                                    style={'paddingTop' : 9}),
+                                                    style={'paddingTop' : 9,
+                                                           'width' : 139}),
                                             
                                             dbc.Input(type="number",
                                                       id="max_fw",
@@ -514,26 +601,69 @@ app.layout=html.Div([
                                                       value=20,
                                                       style={"width": 70}),
                                             
+                                            html.H6('Min gap size', 
+                                                    style={'paddingTop' : 9}),
                                             
-                                        ], style={'paddingRight' : 25}),
+                                            dbc.Input(type="number",
+                                                      id="min_gap",
+                                                      min=1,
+                                                      step=1,
+                                                      value=5,
+                                                      style={"width": 70}),
+                                            
+                                            
+                                        ], style={'paddingRight' : 20,
+                                                  'paddingBottom' : 0}),
                                         
                                         html.Div([
                                             
-                                            html.H6('Border color', 
-                                                    style={'paddingTop' : 14}),
+                                            dmc.Tooltip(
+                                                withArrow=True,
+                                                position="bottom",
+                                                placement="start",
+                                                transition="fade",
+                                                transitionDuration=200,
+                                                arrowSize = 5,
+                                                label='Changes will reset data table',
+                                                
+                                                children=[
+                                                    
+                                                    html.H6('Border color', 
+                                                            style={'paddingTop' : 14}),
+                                                    
+                                                ]),
                                             
                                             dbc.Input(
                                                 type="color",
                                                 id="border_color",
                                                 value="#ffffff",
-                                                style={"width": 110, "height": 35}),
+                                                style={"width": 110,
+                                                       "height": 35}),
                                             
-                                            html.H6('Show overlay', 
+                                            html.H6('Cursor box', 
                                                     style={'paddingTop' : 11,
                                                            'paddingBottom' : 5}),
                                             
-                                            daq.BooleanSwitch(id='overlay-switch',
-                                                              on=False),
+                                            dmc.Switch(
+                                                size="md",
+                                                radius="xl",
+                                                label="Show",
+                                                id='cursor-switch',
+                                                checked=True
+                                            ),
+                                            
+                                            html.H6('Fiber overlay', 
+                                                    style={'paddingTop' : 16,
+                                                           'paddingBottom' : 0}),
+                                            
+                                            dmc.Switch(
+                                                size="md",
+                                                radius="xl",
+                                                label="Show",
+                                                id='overlay-switch',
+                                                checked=False,
+                                                style={'height':30}
+                                            )
                                             
                                         ])
                                         
@@ -542,23 +672,6 @@ app.layout=html.Div([
                                 ]),
                                 
                                 html.Div([
-                                    
-                                    html.Div([
-                                        
-                                        html.H6('Selected Fiber Data Table', 
-                                                style={'paddingBottom' : 20,
-                                                       'paddingRight' : 80}),
-                                    
-                                        html.Div([
-                                            
-                                                dmc.Button("Download CSV", 
-                                                           id="btn_csv"),
-                                                                          
-                                                dcc.Download(id="download-dataframe-csv"),
-                                                
-                                        ],style={'paddingTop' : 4})
-
-                                    ], className='flex-container'),
                                     
                                     dash_table.DataTable(
                                         id="annotations-table",
@@ -574,7 +687,7 @@ app.layout=html.Div([
                                         fill_width=True,
                                         page_action="native",
                                         page_current=0,
-                                        page_size=9,
+                                        page_size=8,
                                         style_data={"height": 15},
                                         style_cell={
                                             "textAlign": "left",
@@ -609,26 +722,34 @@ app.layout=html.Div([
                                                       'paddingTop' : 50,
                                                       'paddingRight' : 25}),
                 
-                dcc.Loading(
-                    id='loading-op',
-                    type='dot',
-                    children=html.Div([
-                        
-                        dcc.Graph(id='out-op-img', 
-                                  figure=fig,
-                                  config={'displaylogo':False,
-                                          'modeBarButtonsToAdd':['eraseshape'],
-                                          'modeBarButtonsToRemove':[
-                                              'zoom2d',
-                                              'pan2d',
-                                              'zoomIn2d',
-                                              'zoomOut2d',
-                                              'autoScale2d',
-                                              'resetScale2d']})
-                        
-                    ],style={'paddingRight' : 25})
-                )
+                html.Div([
                 
+                    dcc.Graph(id='out-op-img', 
+                              figure=fig,
+                              
+                              config={'displaylogo':False,
+                                      
+                                      'modeBarButtonsToAdd':[
+                                          'eraseshape'],
+                                      
+                                      'modeBarButtonsToRemove':[
+                                          'zoom2d',
+                                          'pan2d',
+                                          'zoomIn2d',
+                                          'zoomOut2d',
+                                          'autoScale2d',
+                                          'resetScale2d']}),
+                
+                    dcc.Tooltip(id="graph-tooltip",
+                                loading_text = '',
+                                style = {'height':16,
+                                         'width':25,
+                                         'font-size': 14}),
+                
+                ],style={'paddingRight' : 25}),
+                
+                html.Div(id='download  div'),
+
             ]
                 
         ),
@@ -639,22 +760,18 @@ app.layout=html.Div([
                 
                 html.H4(' ',
                         id='Selected_Fiber_Title', 
-                        style={"textAlign": "center",
+                        style={'textAlign' : 'center',
                                'paddingBottom' : 15,
                                'paddingTop' : 50,
                                'paddingRight' : 20}),
                 
-                dcc.Loading(
-                    id='loading-sel',
-                    type='dot',
-                    children=html.Div(
-                        
-                        dcc.Graph(id='sel-op-img', 
-                                  figure=blank_fig(),
-                                  config={'displayModeBar' : False})
-                        
-                    )
-                ),
+                html.Div(
+                    
+                    dcc.Graph(id='sel-op-img', 
+                              figure=blank_fig(),
+                              config={'displayModeBar' : False})
+                    
+                )
                 
             ], style={'width': '128px','paddingRight' : 20}
                 
@@ -668,29 +785,26 @@ app.layout=html.Div([
 
 @app.callback(
     Output('out-op-img', 'relayoutData'),
-    Input('image-processors-tabs', 'value'))
+    Input('image-processors-tabs', 'value'),
+    Input('method-dropdown', 'value'),
+    Input("border_color", "value"),
+    Input("border_w", "value"),
+    prevent_initial_call=True)
 
-def reset_relayout(tab):
+def reset_relayout(tab,shape_dropdown,color,width):
     
-    if tab=='selections':
+    ctx = dash.callback_context
+    ctx_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if ctx_id == 'image-processors-tabs':
+    
+        if tab=='selections':
+            
+            return dash.no_update
         
-        return dash.no_update
+        return None
     
     return None
-
-
-
-@app.callback(
-    Output('Selected_Fiber_Title', 'children'),
-    Input('image-processors-tabs', 'value'))
-
-def show_text_selection_title(tab):
-    
-    if tab=='selections':
-        
-        return "Selected Fiber"
-    
-    return " "
 
 
 
@@ -722,12 +836,13 @@ def color_fiber_display(color_selection):
               Input('image-processors-tabs', 'value'),
               Input('reset-btn', 'n_clicks'),
               Input('auto-btn', 'n_clicks'),
+              Input('rotate_knob', 'value'),
               Input("color_label-dropdown", "value"),
               Input('upload-image', 'contents'),
               State('out-op-img', 'figure'),
               State('upload-image', 'filename'))
 
-def autocorrect(tab,btn1,btn2,color_selection,contents,filenames,dates):
+def autocorrect(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
     
     if contents is None:
         
@@ -761,6 +876,8 @@ def autocorrect(tab,btn1,btn2,color_selection,contents,filenames,dates):
 
 @app.callback(
     Output('out-op-img', 'figure'),
+    Output('im_rotation', 'data'),
+    Output('im_flip', 'data'),
     [Input('upload-image', 'contents'),
      Input("slider-Gamma", "value"),
      Input("slider-CR", "value"),
@@ -768,12 +885,23 @@ def autocorrect(tab,btn1,btn2,color_selection,contents,filenames,dates):
      Input("slider-BR", "value"),
      Input("slider-DI", "value"),
      Input("slider-Contrast", "value"),
+     Input('im_rotation', 'data'),
+     Input('im_flip', 'data'),
+     Input("rotate_left", "n_clicks"),
+     Input("rotate_right", "n_clicks"),
+     Input("flip_hor", "n_clicks"),
+     Input("flip_ver", "n_clicks"),
+     Input('rotate_knob', 'value'),
+     Input('reset-btn', 'n_clicks'),
      Input('image-processors-tabs', 'value'),
      Input('method-dropdown', 'value'),
+     Input("border_color", "value"),
+     Input("border_w", "value"),
      State('out-op-img', 'figure'),
-     State('upload-image', 'filename')])
+     State('upload-image', 'filename')],
+    )
 
-def get_operated_image(contents, gam, CR, GR, BR, DI, con, tab, method, filenames, dates):
+def get_operated_image(contents, gam, CR, GR, BR, DI, con, rotation, flip, RL, RR, FH, FV, RF, reset, tab, method, color, width, filenames, dates):
     
     if contents is not None:
         
@@ -805,15 +933,49 @@ def get_operated_image(contents, gam, CR, GR, BR, DI, con, tab, method, filename
         
             out_img=imo.contrast_operation(thresh_val=con)
 
+        ctx = dash.callback_context
+        ctx_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        if ctx_id == 'rotate_left':
+            
+            rotation += 90
+            
+        if ctx_id == 'rotate_right':
+            
+            rotation -= 90
+            
+        if ctx_id == 'flip_hor':
+            
+            flip[0] = not flip[0]
+
+        if ctx_id == 'flip_ver':
+            
+            flip[1] = not flip[1]
+                
+        if ctx_id == 'reset-btn':
+            
+            rotation = 0 ; RF = 0 ; flip = [False,False]
+        
+        out_img=imo.rotate_operation(angle = rotation - RF , flipped = flip)
+
         out_image_fig=px.imshow(out_img)
         out_image_fig.update_layout(
             coloraxis_showscale=False, 
             width=1000, height=750, 
             margin=dict(l=0, r=0, b=0, t=0)
         )
+        
         out_image_fig.update_traces(hoverinfo='none', hovertemplate='')
-        out_image_fig.update_xaxes(showticklabels=False)
-        out_image_fig.update_yaxes(showticklabels=False)
+        
+        out_image_fig.update_xaxes(showticklabels=False,
+                                   zerolinecolor = 'rgba(0,0,0,0)')
+        
+        out_image_fig.update_yaxes(showticklabels=False,
+                                   zerolinecolor = 'rgba(0,0,0,0)')
+        
+        out_image_fig.update_layout(plot_bgcolor='rgb(0,0,0)',
+                                    paper_bgcolor='rgb(0,0,0)')
+        
         out_image_fig.update_layout(dragmode=False)
         
         if tab=='selections':
@@ -821,19 +983,19 @@ def get_operated_image(contents, gam, CR, GR, BR, DI, con, tab, method, filename
             if method=='Rectangle':
                 
                 out_image_fig.update_layout(dragmode='drawrect',
-            newshape=dict(line={"color": "#0066ff", "width": 1.5, "dash": "solid"}))
+            newshape=dict(line={"color": color, "width": width, "dash": "solid"}))
                 
             if method=='Lasso':
                 
                 out_image_fig.update_layout(dragmode='drawclosedpath',
-            newshape=dict(line={"color": "#0066ff", "width": 1.5, "dash": "solid"}))
+            newshape=dict(line={"color": color, "width": width, "dash": "solid"}))
                 
             if method=='Line':
                 
                 out_image_fig.update_layout(dragmode='drawline',
-            newshape=dict(line={"color": "#0066ff", "width": 1.5, "dash": "solid"}))
+            newshape=dict(line={"color": color, "width": width, "dash": "solid"}))
                     
-        return out_image_fig
+        return out_image_fig, rotation, flip
     
     else:
         
@@ -888,8 +1050,13 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                 
                 y0, y1=y1, y0
             
-            Length=int(abs(y1 - y0))
-            Width=int(abs(x1 - x0))
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
+            
+            if Length < Width:
+                
+                Length, Width = Width, Length
+            
             ratio=imo.G_R_operation(x0, x1, y0, y1)
             
             if new_row is None:
@@ -993,8 +1160,12 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                 
                 y0, y1=y1, y0
             
-            Length=int(abs(y1 - y0))
-            Width=int(abs(x1 - x0))
+            if Length < Width:
+                
+                Length, Width = Width, Length
+            
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
             ratio=imo.G_R_operation(x0, x1, y0, y1)
             n=int(shape_nb)
             
@@ -1025,29 +1196,70 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
 
 @app.callback(
     Output('sel-op-img', 'figure'), 
+    Output('Selected_Fiber_Title', 'children'),
+    Output("annotations-table", "style_data_conditional"),
     [Input('out-op-img', 'relayoutData'),
      Input('out-op-img', 'figure'),
      Input('image-processors-tabs', 'value'),
-     Input('shape_coords', 'data')],prevent_initial_call=True)
+     Input('out-op-img', 'hoverData'),
+     Input('shape_coords', 'data')],
+    prevent_initial_call=True)
 
-def selection_fiber_image(fig_data, fig, tab, shape_coords): 
+def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords): 
     
     if tab=='selections':
         
         if fig_data is None:
             
-            return blank_fig()
+            return dash.no_update
         
-        nparr=np.frombuffer(base64.b64decode(fig['data'][0]['source'][22:]), np.uint8)
-        img=cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        imo=ImageOperations(image_file_src=img)
-        out_img=imo.read_operation()
+        if shape_coords is None:
+            
+            return dash.no_update
         
         x0, y0=shape_coords[-1]['x0'], shape_coords[-1]['y0']
         x1, y1=shape_coords[-1]['x1'], shape_coords[-1]['y1']
+        style_data_conditional = []
         
-        out_img=imo.crop_operation(x0,x1,y0,y1)
+        if hover_data is not None:
+            
+            x0_h=hover_data["points"][0]["x"] ; y0_h=hover_data["points"][0]["y"]
+            
+            for i in range(len(shape_coords)):
+                
+                if x0_h >=shape_coords[i]['x0'] and x0_h <=shape_coords[i]['x1']:
+                    
+                    if y0_h >=shape_coords[i]['y0'] and y0_h <=shape_coords[i]['y1']:
+                        
+                        x0, x1=shape_coords[i]['x0'], shape_coords[i]['x1']
+                        y0, y1=shape_coords[i]['y0'], shape_coords[i]['y1']
+                        
+                        style_data_conditional=[
+                            
+                            {
+                                'if': {
+                                    'filter_query': '{{Fiber}}={}'.format(shape_coords[i]['n']),
+                                },
+                                'backgroundColor': '#0074D9',
+                                'color': 'white'
+                            }
+                        ]
+        
+        nparr=np.frombuffer(base64.b64decode(fig['data'][0]['source'][22:]), 
+                            np.uint8)
+        
+        img=cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        imo=ImageOperations(image_file_src=img)
+        out_img=imo.read_operation()
+        
+        out_img = imo.crop_operation(x0,x1,y0,y1)
+        
+        if(x1-x0)>(y1-y0):
+        
+            out_img=skimage.transform.rotate(out_img,-90, resize=True)
+        
         out_image_fig=px.imshow(out_img)
         
         out_image_fig.update_layout(height=750,
@@ -1059,29 +1271,38 @@ def selection_fiber_image(fig_data, fig, tab, shape_coords):
         out_image_fig.update_xaxes(showticklabels=False)
         out_image_fig.update_yaxes(showticklabels=False)
         out_image_fig.update_layout(dragmode=False)
-        
-        return out_image_fig
+
+        return out_image_fig, "Selected Fiber", style_data_conditional
     
     else:
         
-        return blank_fig()
+        return blank_fig(), ' ', [] 
         
 @app.callback(
-    Output("annotations-table", "style_data_conditional"),
-    Input('shape_number', 'data'),
+    Output("graph-tooltip", "show"),
+    Output("graph-tooltip", "bbox"),
+    Output("graph-tooltip", "children"),
     Input('out-op-img', 'hoverData'),
-    Input('shape_coords', 'data')
+    Input('shape_coords', 'data'),
+    Input("cursor-switch", "checked")
 )
 
-def style_selected_rows(shape_number, hover_data, shape_coords):
+def style_selected_rows(hover_data, shape_coords, cursor):
     
-    if shape_number is None:
+    if shape_coords is None:
         
+        return dash.no_update
+    
+    if cursor is False:
+    
         return dash.no_update
     
     if hover_data is not None:
         
         x0=hover_data["points"][0]["x"] ; y0=hover_data["points"][0]["y"]
+        
+        pt = hover_data["points"][0]
+        bbox = pt["bbox"]
         
         for i in range(len(shape_coords)):
             
@@ -1089,17 +1310,84 @@ def style_selected_rows(shape_number, hover_data, shape_coords):
                 
                 if y0 >=shape_coords[i]['y0'] and y0 <=shape_coords[i]['y1']:
                     
-                    style_data_conditional=[
-                        {
-                            'if': {
-                                'filter_query': '{{Fiber}}={}'.format(shape_coords[i]['n']),
-                            },
-                            'backgroundColor': '#0074D9',
-                            'color': 'white'
-                        }
-                    ]
+                    if shape_coords[i]['n'] < 10:
+                    
+                        children = [html.P([f"{shape_coords[i]['n']}"],
+                                           className='flex-text_0-9')]
+                        
+                    elif shape_coords[i]['n'] < 100:
+                    
+                        children = [html.P([f"{shape_coords[i]['n']}"],
+                                           className='flex-text_10-99')]
+                        
+                    else:
+                        
+                        children = [html.P([f"{shape_coords[i]['n'] + 100}"],
+                                           className='flex-text_99-plus')]
+                    
+                    return True, bbox, children
+        
+        return False, None, None
+            
+    else:
+        
+        return False, None, None
     
-                    return style_data_conditional
+
+
+@app.callback(
+    Output('download  div', 'children'), 
+    Input('image-processors-tabs', 'value'))
+
+def show_text_selection_title(tab):
     
+    if tab=='selections':
+        
+        downlaod_sel = html.Div([
+            
+            dmc.Group(grow = True, spacing = 'xs', children =[
+
+                dmc.Button("Data table CSV", 
+                           id="btn_csv",
+                           style={'width' : 246},
+                           n_clicks=0,
+                           leftIcon=[DashIconify(
+                                icon="akar-icons:download")
+                            ]),
+                
+                dmc.Button("annotated Image PNG", 
+                           id="btn_im",
+                           style={'width' : 246},
+                           n_clicks=0,
+                           leftIcon=[DashIconify(
+                                icon="akar-icons:download")
+                            ]),
+                
+                dmc.Button("current Fiber plot", 
+                           id="btn_sel_c",
+                           style={'width' : 246},
+                           n_clicks=0,
+                           leftIcon=[DashIconify(
+                                icon="akar-icons:download")
+                            ]),
+                                          
+                dmc.Button("all fiber plots", 
+                           id="btn_sel_a",
+                           style={'width' : 246},
+                           n_clicks=0,
+                           leftIcon=[DashIconify(
+                                icon="akar-icons:download")
+                            ])
+                
+            ],style = {'width' : 996, 'paddingTop': 5})
+
+        ])
+        
+        return downlaod_sel
+    
+    return " ", None
+    
+
+
 if __name__=='__main__':
     app.run_server(debug=True)

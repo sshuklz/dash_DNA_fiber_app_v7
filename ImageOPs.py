@@ -50,6 +50,36 @@ class ImageOperations(object):
             
         return image_src
     
+    def rotate_operation(self, angle, flipped):
+
+        image_src = self.image_file_src
+        
+        if flipped[0] is True:
+        
+            image_src = np.fliplr(image_src)
+            
+        if flipped[1] is True:
+        
+            image_src = np.flipud(image_src)
+        
+        height, width = image_src.shape[:2]
+        image_center = (width/2, height/2)
+        
+        rotation_mat = cv2.getRotationMatrix2D(image_center, angle, 1.)
+        
+        abs_cos = abs(rotation_mat[0,0]) 
+        abs_sin = abs(rotation_mat[0,1])
+        
+        bound_w = int(height * abs_sin + width * abs_cos)
+        bound_h = int(height * abs_cos + width * abs_sin)
+    
+        rotation_mat[0, 2] += bound_w/2 - image_center[0]
+        rotation_mat[1, 2] += bound_h/2 - image_center[1]
+
+        rotated_mat = cv2.warpAffine(image_src, rotation_mat, (bound_w, bound_h))
+        
+        return rotated_mat
+    
     def crop_operation(self, x0, x1, y0, y1):
         
         image_src = self.image_file_src
