@@ -649,7 +649,7 @@ app.layout=html.Div([
                                                 radius="xl",
                                                 label="Show",
                                                 id='cursor-switch',
-                                                checked=True
+                                                checked=False
                                             ),
                                             
                                             html.H6('Fiber overlay', 
@@ -773,7 +773,7 @@ app.layout=html.Div([
                     
                 )
                 
-            ], style={'width': '128px','paddingRight' : 20}
+            ], style={'width': '130px','paddingRight' : 20,'paddingLeft' : 10}
                 
         )
         
@@ -1202,10 +1202,11 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
      Input('out-op-img', 'figure'),
      Input('image-processors-tabs', 'value'),
      Input('out-op-img', 'hoverData'),
-     Input('shape_coords', 'data')],
+     Input('shape_coords', 'data'),
+     Input("overlay-switch", "checked")],
     prevent_initial_call=True)
 
-def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords): 
+def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay): 
     
     if tab=='selections':
         
@@ -1244,6 +1245,10 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords):
                                 'color': 'white'
                             }
                         ]
+        
+        if overlay is False:
+        
+            return blank_fig(),' ', style_data_conditional
         
         nparr=np.frombuffer(base64.b64decode(fig['data'][0]['source'][22:]), 
                             np.uint8)
