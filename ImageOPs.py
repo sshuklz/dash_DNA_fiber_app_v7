@@ -50,7 +50,7 @@ class ImageOperations(object):
             
         return image_src
     
-    def slider_operation(self, RC, GC, BC, gam, con, DI):
+    def color_operation(self, RC, GC, BC):
         
         image_src = self.image_file_src
         
@@ -65,23 +65,6 @@ class ImageOperations(object):
         if BC > 0:
             
             image_src[:,:,2][image_src[:,:,2] < BC] = 0
-        
-        if gam != 1:
-        
-            invGamma = 1 / (gam)
-     
-            table = [((i / 255) ** invGamma) * 255 for i in range(256)]
-            table = np.array(table, np.uint8)
-            
-            image_src = cv2.LUT(image_src, table)
-            
-        if con != 1:
-            
-            image_src = cv2.convertScaleAbs(image_src, alpha = con, beta=0)
-            
-        if DI > 0:
-            
-            image_src = cv2.fastNlMeansDenoisingColored(image_src,None,DI,DI,7,21)
         
         return image_src
     
@@ -121,9 +104,29 @@ class ImageOperations(object):
         
         return int(red_val), int(green_val), int(blue_val), 1, 1, 0
     
-    def rotate_operation(self, angle, flipped):
+    def transform_operation(self, angle, flipped, gam, con, DI):
 
         image_src = self.image_file_src
+        
+        if gam != 1:
+            
+            invGamma = 1 / (gam)
+     
+            table = [((i / 255) ** invGamma) * 255 for i in range(256)]
+            table = np.array(table, np.uint8)
+            
+            image_src = cv2.LUT(image_src, table)
+            
+        if con != 1:
+
+            image_src = cv2.convertScaleAbs(image_src,
+                                            alpha = con,
+                                            beta=0)
+            
+        if DI > 0:
+
+            image_src = cv2.fastNlMeansDenoisingColored(image_src,
+                                                        None,DI,DI,7,21)
         
         if flipped[0] is True:
         

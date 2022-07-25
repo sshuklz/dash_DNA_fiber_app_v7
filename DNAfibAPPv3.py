@@ -943,9 +943,9 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
             if ctx_id == 'auto-btn':
     
                 i=color_types.index(color_selection)
-                c1=colors[i][0] ; c2=colors[i][1]
-    
-                sliders = list(imo.auto_correct_operation(c1,c2))
+                
+                sliders = list(imo.auto_correct_operation(colors[i][0],
+                                                          c2=colors[i][1]))
             
             elif ctx_id == 'slider-RC':
             
@@ -992,8 +992,14 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
                 rotation = 0 ; RF = 0 ; 
                 flip = [False, False] ; sliders = [0,0,0,1,1,0]
         
-        out_img=imo.slider_operation(*sliders)
-        out_img=imo.rotate_operation(angle = rotation - RF , flipped = flip)
+        out_img=imo.color_operation(*sliders[:3])
+        
+        out_img=imo.transform_operation(rotation - RF , 
+                                     flip,
+                                     sliders[3],
+                                     sliders[4],
+                                     sliders[5])
+        
         out_image_fig=px.imshow(out_img)
         
         out_image_fig.update_layout(
@@ -1077,6 +1083,7 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
         if 'shapes' in fig_data:
             
             shape_n = len(fig_data["shapes"])
+            
             x0, y0=int(fig_data["shapes"][-1]["x0"]), int(fig_data["shapes"][-1]["y0"])
             x1, y1=int(fig_data["shapes"][-1]["x1"]), int(fig_data["shapes"][-1]["y1"])
             
@@ -1106,7 +1113,7 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                 
             else:
                 
-                if shape_n < shape_number:
+                if shape_n < shape_number: #for annotation deletion
                     
                     shape_coord=[]; table_coord=[]
                     
@@ -1148,7 +1155,7 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                             return new_row, len(fig_data["shapes"]), s_coords
                         
                 if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
-                        Length, Width, imo.G_R_operation(x0, x1, y0, y1)]:
+                        Length, Width, imo.G_R_operation(x0, x1, y0, y1)]: #for fiber type change
                     
                     return dash.no_update
                 
@@ -1193,8 +1200,10 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                 
                 y0, y1=y1, y0
             
-            if [s_coords[-1]['x0'],s_coords[-1]['y0'],s_coords[-1]['x1'],s_coords[-1]['y1']] \
-                == [x0,y0,x1,y1]:
+            if [s_coords[-1]['x0'],
+                s_coords[-1]['y0'],
+                s_coords[-1]['x1'],
+                s_coords[-1]['y1']]  == [x0,y0,x1,y1]:
                 
                 dash.no_update
             
@@ -1298,14 +1307,13 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay)
         
         if(x1-x0)>(y1-y0):
         
-            out_img=skimage.transform.rotate(out_img,-90, resize=True)
+            out_img=skimage.transform.rotate(out_img,-90,resize=True)
         
         out_image_fig=px.imshow(out_img)
         
         out_image_fig.update_layout(height=750,
             coloraxis_showscale=False, 
-            margin=dict(l=0, r=0, b=0, t=0)
-        )
+            margin=dict(l=0, r=0, b=0, t=0))
         
         out_image_fig.update_layout(hovermode=False)
         out_image_fig.update_xaxes(showticklabels=False)
@@ -1341,9 +1349,7 @@ def style_selected_rows(hover_data, shape_coords, cursor):
     if hover_data is not None:
         
         x0=hover_data["points"][0]["x"] ; y0=hover_data["points"][0]["y"]
-        
-        pt = hover_data["points"][0]
-        bbox = pt["bbox"]
+        bbox = hover_data["points"][0]["bbox"]
         
         for i in range(len(shape_coords)):
             
@@ -1384,7 +1390,7 @@ def show_text_selection_title(tab):
     
     if tab=='select_tab':
         
-        downlaod_sel = html.Div([
+        return  html.Div([
             
             dmc.Group(grow = True, spacing = 'xs', children =[
 
@@ -1423,8 +1429,6 @@ def show_text_selection_title(tab):
             ],style = {'width' : 996, 'paddingTop': 5, 'justify-content': 'center'})
 
         ])
-        
-        return downlaod_sel
     
     return " ", None
     
