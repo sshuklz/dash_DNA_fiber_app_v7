@@ -147,6 +147,7 @@ app.layout=html.Div([
         
         dcc.Store(id='shape_coords', storage_type='memory'), 
         dcc.Store(id='shape_number', storage_type='memory'),
+        dcc.Store(id='im_sliders', storage_type='memory', data = [0,0,0,1,1,0]),
         dcc.Store(id='im_rotation', storage_type='memory', data = 0),
         dcc.Store(id='im_flip', storage_type='memory', data = [False,False]),
         
@@ -242,7 +243,7 @@ app.layout=html.Div([
                         
                         dcc.Tab(
                             label='Image Operations',
-                            value='operators',
+                            value='image_tab',
                             
                             style={'borderBottom': '1px solid #d6d6d6',
                                    'padding': '6px',
@@ -264,7 +265,7 @@ app.layout=html.Div([
                                         style={'paddingTop' : 15}),
                                 
                                 daq.Slider(
-                                    id='slider-CR',
+                                    id='slider-RC',
                                     min=0,
                                     max=255,
                                     step=1,
@@ -276,7 +277,7 @@ app.layout=html.Div([
                                 html.H6(' ', style={'paddingTop' : 15}),
                                 
                                 daq.Slider(
-                                    id='slider-GR',
+                                    id='slider-GC',
                                     min=0,
                                     max=255,
                                     step=1,
@@ -288,7 +289,7 @@ app.layout=html.Div([
                                 html.H6(' ', style={'paddingTop' : 15}),
                                 
                                 daq.Slider(
-                                    id='slider-BR',
+                                    id='slider-BC',
                                     min=0,
                                     max=255,
                                     step=1,
@@ -477,7 +478,7 @@ app.layout=html.Div([
                     
                         dcc.Tab(
                             label='Image Selections',
-                            value='selections',
+                            value='select_tab',
                             
                             style={'borderBottom': '1px solid #d6d6d6',
                                    'padding': '6px',
@@ -649,7 +650,7 @@ app.layout=html.Div([
                                                 radius="xl",
                                                 label="Show",
                                                 id='cursor-switch',
-                                                checked=False
+                                                checked=True
                                             ),
                                             
                                             html.H6('Fiber overlay', 
@@ -661,7 +662,7 @@ app.layout=html.Div([
                                                 radius="xl",
                                                 label="Show",
                                                 id='overlay-switch',
-                                                checked=False,
+                                                checked=True,
                                                 style={'height':30}
                                             )
                                             
@@ -773,7 +774,7 @@ app.layout=html.Div([
                     
                 )
                 
-            ], style={'width': '130px','paddingRight' : 20,'paddingLeft' : 10}
+            ], style={'width': '130px','paddingRight' : 20,'paddingLeft' : 0}
                 
         )
         
@@ -798,7 +799,7 @@ def reset_relayout(tab,shape_dropdown,color,width):
     
     if ctx_id == 'image-processors-tabs':
     
-        if tab=='selections':
+        if tab=='select_tab':
             
             return dash.no_update
         
@@ -807,29 +808,51 @@ def reset_relayout(tab,shape_dropdown,color,width):
     return None
 
 
-
 @app.callback(
-    [Output("fiber-dropdown", "options"),
-     Output('schema', 'src')],
+    Output("fiber-dropdown", "options"),
+    Input('image-processors-tabs', 'value'),
     Input("color_label-dropdown", "value"))
 
-def color_fiber_display(color_selection):
+def color_fiber_display(tab, color_selection):
     
     if color_selection is None:
         
         return dash.no_update
     
-    i=color_types.index(color_selection)
-    c1=colors[i][0] ; c2=colors[i][1]
-    src_path='/assets/Schema/Schema_' + c1 +'_' + c2 +'.png'
+    if tab != 'select_tab':
     
-    return fiber_dropdown_images(c1,c2), src_path
+        return dash.no_update
+    
+    i=color_types.index(color_selection)
+    
+    return fiber_dropdown_images(colors[i][0],colors[i][1])
 
 
 
-@app.callback(Output('slider-CR', 'value'),
-              Output('slider-GR', 'value'),
-              Output('slider-BR', 'value'),
+@app.callback(
+    Output('schema', 'src'),
+    Input('image-processors-tabs', 'value'),
+    Input("color_label-dropdown", "value"))
+
+def color_fiber_schema(tab, color_selection):
+    
+    if color_selection is None:
+        
+        return dash.no_update
+    
+    if tab != 'color_tab':
+    
+        return dash.no_update
+    
+    i=color_types.index(color_selection)
+    
+    return '/assets/Schema/Schema_' + colors[i][0] + '_' + colors[i][1] +'.png'
+
+
+
+@app.callback(Output('slider-RC', 'value'),
+              Output('slider-GC', 'value'),
+              Output('slider-BC', 'value'),
               Output('slider-Gamma', 'value'),
               Output('slider-Contrast', 'value'),
               Output('slider-DI', 'value'),
@@ -842,13 +865,13 @@ def color_fiber_display(color_selection):
               State('out-op-img', 'figure'),
               State('upload-image', 'filename'))
 
-def autocorrect(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
+def set_vals(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
     
     if contents is None:
         
         return dash.no_update
     
-    if tab !='operators':
+    if tab !='image_tab':
         
         return dash.no_update
     
@@ -858,11 +881,10 @@ def autocorrect(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
         
         return 0,0,0,1,1,0
         
-    elif 'auto-btn' in changed_id:
+    if 'auto-btn' in changed_id:
 
         i=color_types.index(color_selection)
         c1=colors[i][0] ; c2=colors[i][1]
-        
         imsrc=parse_contents(contents, filenames, dates)
         imo=ImageOperations(image_file_src=imsrc)
 
@@ -876,13 +898,16 @@ def autocorrect(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
 
 @app.callback(
     Output('out-op-img', 'figure'),
+    Output('im_sliders', 'data'),
     Output('im_rotation', 'data'),
     Output('im_flip', 'data'),
     [Input('upload-image', 'contents'),
+     Input('im_sliders', 'data'),
+     Input("color_label-dropdown", "value"),
      Input("slider-Gamma", "value"),
-     Input("slider-CR", "value"),
-     Input("slider-GR", "value"),
-     Input("slider-BR", "value"),
+     Input("slider-RC", "value"),
+     Input("slider-GC", "value"),
+     Input("slider-BC", "value"),
      Input("slider-DI", "value"),
      Input("slider-Contrast", "value"),
      Input('im_rotation', 'data'),
@@ -892,6 +917,7 @@ def autocorrect(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
      Input("flip_hor", "n_clicks"),
      Input("flip_ver", "n_clicks"),
      Input('rotate_knob', 'value'),
+     Input('auto-btn', 'n_clicks'),
      Input('reset-btn', 'n_clicks'),
      Input('image-processors-tabs', 'value'),
      Input('method-dropdown', 'value'),
@@ -901,7 +927,7 @@ def autocorrect(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
      State('upload-image', 'filename')],
     )
 
-def get_operated_image(contents, gam, CR, GR, BR, DI, con, rotation, flip, RL, RR, FH, FV, RF, reset, tab, method, color, width, filenames, dates):
+def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, con, rotation, flip, RL, RR, FH, FV, RF, auto, reset, tab, method, color, width, filenames, dates):
     
     if contents is not None:
         
@@ -909,63 +935,75 @@ def get_operated_image(contents, gam, CR, GR, BR, DI, con, rotation, flip, RL, R
         imo=ImageOperations(image_file_src=imsrc)
         out_img=imo.read_operation()
         
-        if gam !=1:
-        
-            out_img=imo.gamma_operation(thresh_val=gam)
+        if tab =='image_tab':
             
-        if CR > 0:
-        
-            out_img=imo.CR_operation(thresh_val=CR)
+            ctx = dash.callback_context
+            ctx_id = ctx.triggered[0]['prop_id'].split('.')[0]
             
-        if GR > 0:
-        
-            out_img=imo.GR_operation(thresh_val=GR)
+            if ctx_id == 'auto-btn':
+    
+                i=color_types.index(color_selection)
+                c1=colors[i][0] ; c2=colors[i][1]
+    
+                sliders = list(imo.auto_correct_operation(c1,c2))
             
-        if BR > 0:
-        
-            out_img=imo.BR_operation(thresh_val=BR)
+            elif ctx_id == 'slider-RC':
             
-        if DI > 0:
-        
-            out_img=imo.denoiseI_operation(thresh_val=DI)
-            
-        if con > 1:
-        
-            out_img=imo.contrast_operation(thresh_val=con)
-
-        ctx = dash.callback_context
-        ctx_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        
-        if ctx_id == 'rotate_left':
-            
-            rotation += 90
-            
-        if ctx_id == 'rotate_right':
-            
-            rotation -= 90
-            
-        if ctx_id == 'flip_hor':
-            
-            flip[0] = not flip[0]
-
-        if ctx_id == 'flip_ver':
-            
-            flip[1] = not flip[1]
+                sliders[0] = RC
                 
-        if ctx_id == 'reset-btn':
+            elif ctx_id == 'slider-GC':
             
-            rotation = 0 ; RF = 0 ; flip = [False,False]
+                sliders[1] = GC
+                
+            elif ctx_id == 'slider-BC':
+            
+                sliders[2] = BC
+                
+            elif ctx_id == 'slider-Gamma':
+            
+                sliders[3] = gam
+                
+            elif ctx_id == 'slider-Contrast':
+            
+                sliders[4] = con
+                
+            elif ctx_id == 'slider-DI':
+            
+                sliders[5] = DI
+            
+            elif ctx_id == 'rotate_left':
+                
+                rotation += 90
+                
+            elif ctx_id == 'rotate_right':
+                
+                rotation -= 90
+                
+            elif ctx_id == 'flip_hor':
+                
+                flip[0] = not flip[0]
+    
+            elif ctx_id == 'flip_ver':
+                
+                flip[1] = not flip[1]
+                    
+            elif ctx_id == 'reset-btn':
+                
+                rotation = 0 ; RF = 0 ; 
+                flip = [False, False] ; sliders = [0,0,0,1,1,0]
         
+        out_img=imo.slider_operation(*sliders)
         out_img=imo.rotate_operation(angle = rotation - RF , flipped = flip)
-
         out_image_fig=px.imshow(out_img)
+        
         out_image_fig.update_layout(
             coloraxis_showscale=False, 
             width=1000, height=750, 
             margin=dict(l=0, r=0, b=0, t=0)
         )
         
-        out_image_fig.update_traces(hoverinfo='none', hovertemplate='')
+        out_image_fig.update_layout(hovermode=False)
+        out_image_fig.update_layout(dragmode=False)
         
         out_image_fig.update_xaxes(showticklabels=False,
                                    zerolinecolor = 'rgba(0,0,0,0)')
@@ -976,26 +1014,27 @@ def get_operated_image(contents, gam, CR, GR, BR, DI, con, rotation, flip, RL, R
         out_image_fig.update_layout(plot_bgcolor='rgb(0,0,0)',
                                     paper_bgcolor='rgb(0,0,0)')
         
-        out_image_fig.update_layout(dragmode=False)
-        
-        if tab=='selections':
+        if tab=='select_tab':
+            
+            out_image_fig.update_layout(hovermode='closest')
+            out_image_fig.update_traces(hoverinfo='none', hovertemplate='')
             
             if method=='Rectangle':
                 
                 out_image_fig.update_layout(dragmode='drawrect',
             newshape=dict(line={"color": color, "width": width, "dash": "solid"}))
                 
-            if method=='Lasso':
+            elif method=='Lasso':
                 
                 out_image_fig.update_layout(dragmode='drawclosedpath',
             newshape=dict(line={"color": color, "width": width, "dash": "solid"}))
                 
-            if method=='Line':
+            elif method=='Line':
                 
                 out_image_fig.update_layout(dragmode='drawline',
             newshape=dict(line={"color": color, "width": width, "dash": "solid"}))
                     
-        return out_image_fig, rotation, flip
+        return out_image_fig, sliders, rotation, flip
     
     else:
         
@@ -1013,18 +1052,12 @@ def get_operated_image(contents, gam, CR, GR, BR, DI, con, rotation, flip, RL, R
      Input('fiber-dropdown', 'value'),
      Input('shape_coords', 'data'),
      Input('shape_number', 'data')],
-    State("annotations-table", "data"),prevent_initial_call=True)
+    State("annotations-table", "data"),
+    prevent_initial_call=True)
 
 def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row): 
     
-    if tab=='selections':
-        
-        nparr=np.frombuffer(
-            base64.b64decode(fig['data'][0]['source'][22:]), np.uint8)
-        
-        img=cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        imo=ImageOperations(image_file_src=img)
+    if tab=='select_tab':
         
         if fig_data is None:
             
@@ -1034,21 +1067,26 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
             
             return None, None, None
         
+        nparr=np.frombuffer(
+            base64.b64decode(fig['data'][0]['source'][22:]), np.uint8)
+        
+        img=cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        imo=ImageOperations(image_file_src=img)
+        
         if 'shapes' in fig_data:
             
             shape_n = len(fig_data["shapes"])
-            
-            last_shape=fig_data["shapes"][-1]
-            x0, y0=int(last_shape["x0"]), int(last_shape["y0"])
-            x1, y1=int(last_shape["x1"]), int(last_shape["y1"])
+            x0, y0=int(fig_data["shapes"][-1]["x0"]), int(fig_data["shapes"][-1]["y0"])
+            x1, y1=int(fig_data["shapes"][-1]["x1"]), int(fig_data["shapes"][-1]["y1"])
             
             if x0 > x1:
                 
-                x0, x1=x1, x0
+                x0, x1 = x1, x0
                 
             if y0 > y1:
                 
-                y0, y1=y1, y0
+                y0, y1 = y1, y0
             
             Length=int(abs(x1 - x0))
             Width=int(abs(y1 - y0))
@@ -1057,8 +1095,6 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                 
                 Length, Width = Width, Length
             
-            ratio=imo.G_R_operation(x0, x1, y0, y1)
-            
             if new_row is None:
             
                 n=0
@@ -1066,7 +1102,7 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                             'Type':fiber, 
                             'Length': Length, 
                             'Width': Width, 
-                            'Segments':ratio}]
+                            'Segments':imo.G_R_operation(x0, x1, y0, y1)}]
                 
             else:
                 
@@ -1111,11 +1147,8 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
 
                             return new_row, len(fig_data["shapes"]), s_coords
                         
-                if new_row[-1]=={'Fiber':new_row[-1]['Fiber'],
-                                   'Type':fiber, 
-                                   'Length': Length, 
-                                   'Width': Width, 
-                                   'Segments':ratio}:
+                if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
+                        Length, Width, imo.G_R_operation(x0, x1, y0, y1)]:
                     
                     return dash.no_update
                 
@@ -1125,7 +1158,7 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                                 'Type':fiber, 
                                 'Length': Length, 
                                 'Width': Width, 
-                                'Segments':ratio})
+                                'Segments':imo.G_R_operation(x0, x1, y0, y1)})
             
         elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
             
@@ -1160,26 +1193,26 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
                 
                 y0, y1=y1, y0
             
+            if [s_coords[-1]['x0'],s_coords[-1]['y0'],s_coords[-1]['x1'],s_coords[-1]['y1']] \
+                == [x0,y0,x1,y1]:
+                
+                dash.no_update
+            
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
+            
             if Length < Width:
                 
                 Length, Width = Width, Length
             
-            Length=int(abs(x1 - x0))
-            Width=int(abs(y1 - y0))
-            ratio=imo.G_R_operation(x0, x1, y0, y1)
             n=int(shape_nb)
             
             new_row[int(shape_nb)]['Fiber']=n
             new_row[int(shape_nb)]['Type']=fiber
             new_row[int(shape_nb)]['Length']=Length
             new_row[int(shape_nb)]['Width']=Width
-            new_row[int(shape_nb)]['Segments']=ratio
-        
-            if [s_coords[-1]['x0'],s_coords[-1]['y0'],s_coords[-1]['x1'],s_coords[-1]['y1']] \
-                == [x0,y0,x1,y1]:
-                
-                dash.no_update
-        
+            new_row[int(shape_nb)]['Segments']=imo.G_R_operation(x0, x1, y0, y1)
+
         if s_coords is None:
             
             s_coords=[{'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1}]
@@ -1193,6 +1226,8 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
     else:
         
         return None, None, None
+
+
 
 @app.callback(
     Output('sel-op-img', 'figure'), 
@@ -1208,7 +1243,7 @@ def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row):
 
 def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay): 
     
-    if tab=='selections':
+    if tab=='select_tab':
         
         if fig_data is None:
             
@@ -1272,7 +1307,7 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay)
             margin=dict(l=0, r=0, b=0, t=0)
         )
         
-        out_image_fig.update_traces(hoverinfo='none', hovertemplate='')
+        out_image_fig.update_layout(hovermode=False)
         out_image_fig.update_xaxes(showticklabels=False)
         out_image_fig.update_yaxes(showticklabels=False)
         out_image_fig.update_layout(dragmode=False)
@@ -1283,14 +1318,15 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay)
         
         return blank_fig(), ' ', [] 
         
+    
+    
 @app.callback(
     Output("graph-tooltip", "show"),
     Output("graph-tooltip", "bbox"),
     Output("graph-tooltip", "children"),
     Input('out-op-img', 'hoverData'),
     Input('shape_coords', 'data'),
-    Input("cursor-switch", "checked")
-)
+    Input("cursor-switch", "checked"))
 
 def style_selected_rows(hover_data, shape_coords, cursor):
     
@@ -1346,7 +1382,7 @@ def style_selected_rows(hover_data, shape_coords, cursor):
 
 def show_text_selection_title(tab):
     
-    if tab=='selections':
+    if tab=='select_tab':
         
         downlaod_sel = html.Div([
             
@@ -1384,7 +1420,7 @@ def show_text_selection_title(tab):
                                 icon="akar-icons:download")
                             ])
                 
-            ],style = {'width' : 996, 'paddingTop': 5})
+            ],style = {'width' : 996, 'paddingTop': 5, 'justify-content': 'center'})
 
         ])
         

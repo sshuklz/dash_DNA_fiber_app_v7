@@ -50,73 +50,39 @@ class ImageOperations(object):
             
         return image_src
     
-    def rotate_operation(self, angle, flipped):
-
-        image_src = self.image_file_src
-        
-        if flipped[0] is True:
-        
-            image_src = np.fliplr(image_src)
-            
-        if flipped[1] is True:
-        
-            image_src = np.flipud(image_src)
-        
-        height, width = image_src.shape[:2]
-        image_center = (width/2, height/2)
-        
-        rotation_mat = cv2.getRotationMatrix2D(image_center, angle, 1.)
-        
-        abs_cos = abs(rotation_mat[0,0]) 
-        abs_sin = abs(rotation_mat[0,1])
-        
-        bound_w = int(height * abs_sin + width * abs_cos)
-        bound_h = int(height * abs_cos + width * abs_sin)
-    
-        rotation_mat[0, 2] += bound_w/2 - image_center[0]
-        rotation_mat[1, 2] += bound_h/2 - image_center[1]
-
-        rotated_mat = cv2.warpAffine(image_src, rotation_mat, (bound_w, bound_h))
-        
-        return rotated_mat
-    
-    def crop_operation(self, x0, x1, y0, y1):
+    def slider_operation(self, RC, GC, BC, gam, con, DI):
         
         image_src = self.image_file_src
-        image_src = image_src[y0:y1 , x0:x1]  
         
-        return image_src
+        if RC > 0:
         
-    def G_R_operation(self, x0, x1, y0, y1):
-        
-        image_src = self.image_file_src
-        image_src = image_src[y0:y1 , x0:x1]  
-        reds = sum(image_src[:,:,0].flatten())
-        greens = sum(image_src[:,:,1].flatten())
-        
-        if reds > greens:
-        
-            reds_new = reds / reds
-            greens_new = greens / reds
+            image_src[:,:,0][image_src[:,:,0] < RC] = 0
             
-        else:
+        if GC > 0:
             
-            reds_new = reds / greens
-            greens_new = greens / greens
+            image_src[:,:,1][image_src[:,:,1] < GC] = 0
             
-        ratio =  ("%.2f" % greens_new) + ' : ' + ("%.2f" % reds_new)
+        if BC > 0:
+            
+            image_src[:,:,2][image_src[:,:,2] < BC] = 0
         
-        return ratio
-
-    def gamma_operation(self, thresh_val):
+        if gam != 1:
         
-        image_src = self.image_file_src
-        invGamma = 1 / (thresh_val)
- 
-        table = [((i / 255) ** invGamma) * 255 for i in range(256)]
-        table = np.array(table, np.uint8)
+            invGamma = 1 / (gam)
+     
+            table = [((i / 255) ** invGamma) * 255 for i in range(256)]
+            table = np.array(table, np.uint8)
+            
+            image_src = cv2.LUT(image_src, table)
+            
+        if con != 1:
+            
+            image_src = cv2.convertScaleAbs(image_src, alpha = con, beta=0)
+            
+        if DI > 0:
+            
+            image_src = cv2.fastNlMeansDenoisingColored(image_src,None,DI,DI,7,21)
         
-        image_src = cv2.LUT(image_src, table)
         return image_src
     
     def auto_correct_operation(self, c1, c2):
@@ -155,37 +121,59 @@ class ImageOperations(object):
         
         return int(red_val), int(green_val), int(blue_val), 1, 1, 0
     
-    def denoiseI_operation(self, thresh_val):
-        
+    def rotate_operation(self, angle, flipped):
+
         image_src = self.image_file_src
-        image_src = cv2.fastNlMeansDenoisingColored(image_src,None,thresh_val,thresh_val,7,21)
+        
+        if flipped[0] is True:
+        
+            image_src = np.fliplr(image_src)
+            
+        elif flipped[1] is True:
+        
+            image_src = np.flipud(image_src)
+        
+        if angle > 0:
+        
+            height, width = image_src.shape[:2]
+            image_center = (width/2, height/2)
+            
+            rotation_mat = cv2.getRotationMatrix2D(image_center, angle, 1.)
+            
+            abs_cos = abs(rotation_mat[0,0]) 
+            abs_sin = abs(rotation_mat[0,1])
+            
+            bound_w = int(height * abs_sin + width * abs_cos)
+            bound_h = int(height * abs_cos + width * abs_sin)
+        
+            rotation_mat[0, 2] += bound_w/2 - image_center[0]
+            rotation_mat[1, 2] += bound_h/2 - image_center[1]
+        
+            image_src = cv2.warpAffine(image_src,rotation_mat,(bound_w, bound_h))
         
         return image_src
     
-    def contrast_operation(self, thresh_val):
+    def crop_operation(self, x0, x1, y0, y1):
         
         image_src = self.image_file_src
-        image_src = cv2.convertScaleAbs(image_src, alpha = thresh_val, beta=0)
-
-        return image_src
-
-    def CR_operation(self, thresh_val):
         
-        image_src = self.read_operation()
-        image_src[:,:,0][image_src[:,:,0] < thresh_val] = 0
+        return image_src[y0:y1 , x0:x1]  
         
-        return image_src
+    def G_R_operation(self, x0, x1, y0, y1):
         
-    def GR_operation(self, thresh_val):
+        image_src = self.image_file_src
+        image_src = image_src[y0:y1 , x0:x1]  
+        reds = sum(image_src[:,:,0].flatten())
+        greens = sum(image_src[:,:,1].flatten())
         
-        image_src = self.read_operation()
-        image_src[:,:,1][image_src[:,:,1] < thresh_val] = 0
+        if reds > greens:
         
-        return image_src
-    
-    def BR_operation(self, thresh_val):
+            reds_new = reds / reds
+            greens_new = greens / reds
+            
+        else:
+            
+            reds_new = reds / greens
+            greens_new = greens / greens
         
-        image_src = self.read_operation()
-        image_src[:,:,2][image_src[:,:,2] < thresh_val] = 0
-        
-        return image_src
+        return ("%.2f" % greens_new) + ' : ' + ("%.2f" % reds_new)
