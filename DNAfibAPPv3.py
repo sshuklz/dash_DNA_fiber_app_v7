@@ -43,30 +43,23 @@ DNA_fiber_types=['stalled',
                 'terminated fork',
                 'interspersed']
 
-color_types=['Primary Red : Secondary Green',
-             'Primary Green : Secondary Red',
-             'Primary Red : Secondary Blue',
-             'Primary Blue : Secondary Red',
-             'Primary Green : Secondary Blue',
-             'Primary Blue : Secondary Green',
-               
-             'Primary Yellow : Secondary Blue',
-             'Primary Blue : Secondary Yellow',
-             'Primary Magenta : Secondary Green',
-             'Primary Green : Secondary Magenta',
-             'Primary Red : Secondary Cyan',
-             'Primary Cyan : Secondary Red',
-              
-             'Primary Yellow : Secondary Magenta',
-             'Primary Magenta : Secondary Yellow',
-             'Primary Cyan : Secondary Magenta',
-             'Primary Magenta : Secondary Cyan',
-             'Primary Cyan : Secondary Yellow',
-             'Primary Yellow : Secondary Cyan']
+color_types=['T0 Red : T1 Green',
+             'T0 Green : T1 Red',
+             'T0 Red : T1 Blue',
+             'T0 Blue : T1 Red',
+             'T0 Green : T1 Blue',
+             'T0 Blue : T1 Green',
+             'T0 Red : T1 Green : FISH Blue',
+            'T0 Green : T1 Red : FISH Blue',
+            'T0 Red : T1 Blue : FISH Green',
+            'T0 Blue : T1 Red : FISH Green',
+            'T0 Green : T1 Blue : FISH Red',
+            'T0 Blue : T1 Green : FISH Red']
+
+
 
 colors=[['R','G'],['G','R'],['R','B'],['B','R'],['G','B'],['B','G'],
-        ['Y','B'],['B','Y'],['M','G'],['G','M'],['R','C'],['C','R'],
-        ['Y','M'],['M','Y'],['C','M'],['M','C'],['C','Y'],['Y','C']]
+        ['R','G','F'],['G','R','F'],['R','B','F'],['B','R','F'],['G','B','F'],['B','G','F']]
 
 df=pd.DataFrame(columns=['Fiber', 'Type', 'Length', 'Width', 'Segments'])
 
@@ -78,14 +71,24 @@ height_vals=[10,10,30,10,10,30]
 for i in range(len(colors)):
 
     c1=colors[i][0] ; c2=colors[i][1]
-    label_name = c1 +c2 + '.png'
+    label_name = '_' + c1 + '_' + c2 + '.png'
+
+    try:
+        
+        F=colors[i][2]
+        label_name = '_' + c1 + '_' + c2 + '_' + F + '.png'
+        
+    except:
+        
+        pass
+        
 
     color_options.append({
         
         "label": html.Div([
             
-            html.Img(src="/assets/Color_options/Label_" +
-                     label_name,height=30),
+            html.Img(src="/assets/Color_options/Label" +
+                     label_name, width = 260),
             
             html.Div(color_types[i],
                      style={'font-size':15,'padding-left':10}),
@@ -96,14 +99,13 @@ for i in range(len(colors)):
         
     })
 
-def fiber_dropdown_images(c1,c2):
+def fiber_dropdown_images(c1,c2,F):
 
     fiber_options=[]
 
     for i in range(6):
     
-        label_name = (DNA_fiber_types[i] +
-                      '_' + c1 + '_' + c2 + '.png')
+        label_name = (DNA_fiber_types[i] + '_' + c1 + '_' + c2 + '_' + F + '.png')
     
         fiber_options.append({
             
@@ -136,8 +138,7 @@ fig.update_yaxes(showticklabels=False)
 fig.update_layout(dragmode=False)
 
 legend = ("Segments abbreviations: \n\nG = green, R = red, B = blue, "
-          "M = magenta, C = cyan, Y = yellow, \nOV = overlap, "
-          "GP = gap, : = new segment\n\n")
+          "F = FISH label, \nOV = overlap, GP = gap, : = new segment\n\n")
 
 app.layout=html.Div([
     
@@ -529,7 +530,7 @@ app.layout=html.Div([
                                                     style={'paddingTop' : 10}),
                                                 
                                             dcc.Dropdown(
-                                                fiber_dropdown_images('R','G'),
+                                                fiber_dropdown_images('R','G',''),
                                                 DNA_fiber_types[0], 
                                                 clearable=False,
                                                 searchable=False,
@@ -737,7 +738,7 @@ app.layout=html.Div([
                                           'zoom2d',
                                           'pan2d',
                                           'zoomIn2d',
-                                          'zoomOut2d',
+                                          'zoomOuT2d',
                                           'autoScale2d',
                                           'resetScale2d']}),
                 
@@ -823,9 +824,17 @@ def color_fiber_display(tab, color_selection):
     
         return dash.no_update
     
-    i=color_types.index(color_selection)
+    i = color_types.index(color_selection)
     
-    return fiber_dropdown_images(colors[i][0],colors[i][1])
+    try:
+        
+        return fiber_dropdown_images(colors[i][0], colors[i][1], colors[i][2])
+        
+    except:
+        
+        return fiber_dropdown_images(colors[i][0], colors[i][1], '')
+    
+    
 
 
 
@@ -846,7 +855,14 @@ def color_fiber_schema(tab, color_selection):
     
     i=color_types.index(color_selection)
     
-    return '/assets/Schema/Schema_' + colors[i][0] + '_' + colors[i][1] +'.png'
+    try:
+        
+        return ('/assets/Schema/Schema_' + colors[i][0] + '_' + colors[i][1]
+                + '_' + colors[i][2] +'.png')
+        
+    except:
+        
+        return '/assets/Schema/Schema_' + colors[i][0] + '_' + colors[i][1] +'.png'
 
 
 
@@ -887,9 +903,15 @@ def set_vals(tab,btn1,btn2,knob,color_selection,contents,filenames,dates):
         c1=colors[i][0] ; c2=colors[i][1]
         imsrc=parse_contents(contents, filenames, dates)
         imo=ImageOperations(image_file_src=imsrc)
+        
+        try:
 
-        return imo.auto_correct_operation(c1,c2)
-    
+            return imo.auto_correct_operation(c1,c2,colors[i][2])
+            
+        except:
+            
+            return imo.auto_correct_operation(c1,c2,None)
+        
     else:
         
         return dash.no_update
@@ -944,8 +966,17 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
     
                 i=color_types.index(color_selection)
                 
-                sliders = list(imo.auto_correct_operation(colors[i][0],
-                                                          c2=colors[i][1]))
+                try:
+                    
+                    sliders = list(imo.auto_correct_operation(colors[i][0],
+                                                              colors[i][1],
+                                                              colors[i][2]))
+                
+                except:
+                    
+                    sliders = list(imo.auto_correct_operation(colors[i][0],
+                                                              colors[i][1],
+                                                              None))
             
             elif ctx_id == 'slider-RC':
             

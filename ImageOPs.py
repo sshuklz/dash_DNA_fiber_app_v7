@@ -68,39 +68,29 @@ class ImageOperations(object):
         
         return image_src
     
-    def auto_correct_operation(self, c1, c2):
+    def auto_correct_operation(self, c1, c2, c3):
         
         image_src = self.image_file_src
-        
-        if c1 not in ['B','M','C'] and c2 not in ['B','M','C']:
 
-            image_src[:,:,2] = np.zeros([image_src.shape[0], image_src.shape[1]])
-            
-        if c1 not in ['G','Y','C'] and c2 not in ['G','Y','C']:
-
-            image_src[:,:,1] = np.zeros([image_src.shape[0], image_src.shape[1]])
-            
-        if c1 not in ['R','Y','M'] and c2 not in ['R','Y','M']:
-
-            image_src[:,:,0] = np.zeros([image_src.shape[0], image_src.shape[1]])
-            
-        blue_val = np.mean(image_src[:,:,2].flatten()) + np.std(image_src[:,:,2].flatten())
-        green_val = np.mean(image_src[:,:,1].flatten()) + np.std(image_src[:,:,1].flatten())
-        red_val = np.mean(image_src[:,:,0].flatten()) + np.std(image_src[:,:,0].flatten())
+        blue_val = (np.mean(image_src[:,:,2].flatten()) + np.std(image_src[:,:,2].flatten()))
         
-        if c1 not in ['B','M','C'] and c2 not in ['B','M','C']:
-            
-            blue_val = 255
-            
-        if c1 not in ['G','Y','C'] and c2 not in ['G','Y','C']:
-            
-            green_val = 255
-            
-        if c1 not in ['R','Y','M'] and c2 not in ['R','Y','M']:
-            
-            red_val = 255
+        green_val = (np.mean(image_src[:,:,1].flatten()) + np.std(image_src[:,:,1].flatten()))
         
-        image_src = self.image_file_src
+        red_val = (np.mean(image_src[:,:,0].flatten()) + np.std(image_src[:,:,0].flatten()))
+        
+        if c3 is None:
+        
+            if c1 in ['R','G'] and c2 in ['R','G']:
+                
+                blue_val = 255
+                
+            if c1 in ['B','R'] and c2 in ['B','R']:
+                
+                green_val = 255
+                
+            if c1 in ['B','G'] and c2 in ['B','G']:
+                
+                red_val = 255
         
         return int(red_val), int(green_val), int(blue_val), 1, 1, 0
     
