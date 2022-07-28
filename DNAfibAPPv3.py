@@ -782,31 +782,7 @@ app.layout=html.Div([
     ], className='flex-container')
 
 ], className='flex-container')
-
-
-
-@app.callback(
-    Output('out-op-img', 'relayoutData'),
-    Input('image-processors-tabs', 'value'),
-    Input('method-dropdown', 'value'),
-    Input("border_color", "value"),
-    Input("border_w", "value"),
-    prevent_initial_call=True)
-
-def reset_relayout(tab,shape_dropdown,color,width):
-    
-    ctx = dash.callback_context
-    ctx_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    
-    if ctx_id == 'image-processors-tabs':
-    
-        if tab=='select_tab':
-            
-            return dash.no_update
-        
-        return None
-    
-    return None
+                                                  
 
 
 @app.callback(
@@ -1041,7 +1017,7 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
             margin=dict(l=0, r=0, b=0, t=0)
         )
         
-        out_image_fig.update_layout(hovermode=False)
+        out_image_fig.update_layout(hovermode=False, uirevision="Don't change")
         out_image_fig.update_layout(dragmode=False)
         
         out_image_fig.update_xaxes(showticklabels=False,
@@ -1055,7 +1031,7 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
         
         if tab=='select_tab':
             
-            out_image_fig.update_layout(hovermode='closest')
+            out_image_fig.update_layout(hovermode='closest', uirevision="Don't change")
             out_image_fig.update_traces(hoverinfo='none', hovertemplate='')
             
             if method=='Rectangle':
@@ -1087,187 +1063,180 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
      Output('shape_coords', 'data')], 
     [Input('out-op-img', 'relayoutData'),
      Input('out-op-img', 'figure'),
-     Input('image-processors-tabs', 'value'),
      Input('fiber-dropdown', 'value'),
      Input('shape_coords', 'data'),
      Input('shape_number', 'data')],
     State("annotations-table", "data"),
     prevent_initial_call=True)
 
-def shape_added(fig_data, fig, tab, fiber, s_coords, shape_number, new_row): 
+def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row): 
+
+    if fig_data is None:
+        
+        return None, None, None
     
-    if tab=='select_tab':
+    if fiber is None:
         
-        if fig_data is None:
-            
-            return None, None, None
+        return None, None, None
+    
+    nparr=np.frombuffer(
+        base64.b64decode(fig['data'][0]['source'][22:]), np.uint8)
+    
+    img=cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    imo=ImageOperations(image_file_src=img)
+    
+    if 'shapes' in fig_data:
         
-        if fiber is None:
-            
-            return None, None, None
+        shape_n = len(fig_data["shapes"])
         
-        nparr=np.frombuffer(
-            base64.b64decode(fig['data'][0]['source'][22:]), np.uint8)
+        x0, y0=int(fig_data["shapes"][-1]["x0"]), int(fig_data["shapes"][-1]["y0"])
+        x1, y1=int(fig_data["shapes"][-1]["x1"]), int(fig_data["shapes"][-1]["y1"])
         
-        img=cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        imo=ImageOperations(image_file_src=img)
+        if x0 > x1:
+            
+            x0, x1 = x1, x0
+            
+        if y0 > y1:
+            
+            y0, y1 = y1, y0
         
-        if 'shapes' in fig_data:
+        Length=int(abs(x1 - x0))
+        Width=int(abs(y1 - y0))
+        
+        if Length < Width:
             
-            shape_n = len(fig_data["shapes"])
-            
-            x0, y0=int(fig_data["shapes"][-1]["x0"]), int(fig_data["shapes"][-1]["y0"])
-            x1, y1=int(fig_data["shapes"][-1]["x1"]), int(fig_data["shapes"][-1]["y1"])
-            
-            if x0 > x1:
-                
-                x0, x1 = x1, x0
-                
-            if y0 > y1:
-                
-                y0, y1 = y1, y0
-            
-            Length=int(abs(x1 - x0))
-            Width=int(abs(y1 - y0))
-            
-            if Length < Width:
-                
-                Length, Width = Width, Length
-            
-            if new_row is None:
-            
-                n=0
-                new_row=[{'Fiber':n, 
-                            'Type':fiber, 
-                            'Length': Length, 
-                            'Width': Width, 
-                            'Segments':imo.G_R_operation(x0, x1, y0, y1)}]
-                
-            else:
-                
-                if shape_n < shape_number: #for annotation deletion
-                    
-                    shape_coord=[]; table_coord=[]
-                    
-                    for shape in fig_data["shapes"]:
-                        
-                        x0, y0=int(shape["x0"]), int(shape["y0"])
-                        x1, y1=int(shape["x1"]), int(shape["y1"])
-                        
-                        if x0 > x1:
-                            
-                            x0, x1=x1, x0
-                            
-                        if y0 > y1:
-                            
-                            y0, y1=y1, y0
-                        
-                        shape_coord +=[[x0,x1,y0,y1]]
-                    
-                    for coord in s_coords:
-                            
-                        table_coord +=[[coord['x0'],
-                                         coord['x1'],
-                                         coord['y0'],
-                                         coord['y1']]]
-                            
-                    for i in table_coord:
-                        
-                        if i not in shape_coord:
-                            
-                            x0=i[0] ; x1=i[1] ; y0=i[2] ; y1=i[3]
-                            
-                    for coord in s_coords:
-                        
-                        if [coord['x0'],coord['x1'],coord['y0'],coord['y1']]==[x0,x1,y0,y1]:
-                            
-                            new_row=list(filter(lambda i: i['Fiber'] !=coord['n'], new_row))
-                            s_coords=list(filter(lambda i: i['n'] !=coord['n'], s_coords))
-
-                            return new_row, len(fig_data["shapes"]), s_coords
-                        
-                if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
-                        Length, Width, imo.G_R_operation(x0, x1, y0, y1)]: #for fiber type change
-                    
-                    return dash.no_update
-                
-                n=new_row[-1]['Fiber'] + 1
-                
-                new_row.append({'Fiber':n, 
-                                'Type':fiber, 
-                                'Length': Length, 
-                                'Width': Width, 
-                                'Segments':imo.G_R_operation(x0, x1, y0, y1)})
-            
-        elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
-            
-            shape_n = shape_number
-            
-            for key, val in fig_data.items():
-                
-                shape_nb, coord=key.split(".")
-                shape_nb=shape_nb.split(".")[0].split("[")[-1].split("]")[0]
-                
-                if coord=='x0':
-                    
-                    x0=int(fig_data[key])
-                    
-                elif coord=='x1':
-                    
-                    x1=int(fig_data[key])
-                
-                elif coord=='y0':
-                    
-                    y0=int(fig_data[key])
-                
-                elif coord=='y1':
-                    
-                    y1=int(fig_data[key])
-            
-            if x0 > x1:
-                
-                x0, x1=x1, x0
-                
-            if y0 > y1:
-                
-                y0, y1=y1, y0
-            
-            if [s_coords[-1]['x0'],
-                s_coords[-1]['y0'],
-                s_coords[-1]['x1'],
-                s_coords[-1]['y1']]  == [x0,y0,x1,y1]:
-                
-                dash.no_update
-            
-            Length=int(abs(x1 - x0))
-            Width=int(abs(y1 - y0))
-            
-            if Length < Width:
-                
-                Length, Width = Width, Length
-            
-            n=int(shape_nb)
-            
-            new_row[int(shape_nb)]['Fiber']=n
-            new_row[int(shape_nb)]['Type']=fiber
-            new_row[int(shape_nb)]['Length']=Length
-            new_row[int(shape_nb)]['Width']=Width
-            new_row[int(shape_nb)]['Segments']=imo.G_R_operation(x0, x1, y0, y1)
-
-        if s_coords is None:
-            
-            s_coords=[{'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1}]
+            Length, Width = Width, Length
+        
+        if new_row is None:
+        
+            n=0
+            new_row=[{'Fiber':n, 
+                        'Type':fiber, 
+                        'Length': Length, 
+                        'Width': Width, 
+                        'Segments':imo.G_R_operation(x0, x1, y0, y1)}]
             
         else:
             
-            s_coords.append({'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1})
+            if shape_n < shape_number: #for annotation deletion
+                
+                shape_coord=[]; table_coord=[]
+                
+                for shape in fig_data["shapes"]:
+                    
+                    x0, y0=int(shape["x0"]), int(shape["y0"])
+                    x1, y1=int(shape["x1"]), int(shape["y1"])
+                    
+                    if x0 > x1:
+                        
+                        x0, x1=x1, x0
+                        
+                    if y0 > y1:
+                        
+                        y0, y1=y1, y0
+                    
+                    shape_coord +=[[x0,x1,y0,y1]]
+                
+                for coord in s_coords:
+                        
+                    table_coord +=[[coord['x0'],
+                                     coord['x1'],
+                                     coord['y0'],
+                                     coord['y1']]]
+                        
+                for i in table_coord:
+                    
+                    if i not in shape_coord:
+                        
+                        x0=i[0] ; x1=i[1] ; y0=i[2] ; y1=i[3]
+                        
+                for coord in s_coords:
+                    
+                    if [coord['x0'],coord['x1'],coord['y0'],coord['y1']]==[x0,x1,y0,y1]:
+                        
+                        new_row=list(filter(lambda i: i['Fiber'] !=coord['n'], new_row))
+                        s_coords=list(filter(lambda i: i['n'] !=coord['n'], s_coords))
+
+                        return new_row, len(fig_data["shapes"]), s_coords
+                    
+            if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
+                    Length, Width, imo.G_R_operation(x0, x1, y0, y1)]: #for fiber type change
+                
+                return dash.no_update
+            
+            n=new_row[-1]['Fiber'] + 1
+            
+            new_row.append({'Fiber':n, 
+                            'Type':fiber, 
+                            'Length': Length, 
+                            'Width': Width, 
+                            'Segments':imo.G_R_operation(x0, x1, y0, y1)})
         
-        return new_row, shape_n, s_coords
-    
+    elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
+        
+        shape_n = shape_number
+        
+        for key, val in fig_data.items():
+            
+            shape_nb, coord=key.split(".")
+            shape_nb=shape_nb.split(".")[0].split("[")[-1].split("]")[0]
+            
+            if coord=='x0':
+                
+                x0=int(fig_data[key])
+                
+            elif coord=='x1':
+                
+                x1=int(fig_data[key])
+            
+            elif coord=='y0':
+                
+                y0=int(fig_data[key])
+            
+            elif coord=='y1':
+                
+                y1=int(fig_data[key])
+        
+        if x0 > x1:
+            
+            x0, x1=x1, x0
+            
+        if y0 > y1:
+            
+            y0, y1=y1, y0
+        
+        if [s_coords[-1]['x0'],
+            s_coords[-1]['y0'],
+            s_coords[-1]['x1'],
+            s_coords[-1]['y1']]  == [x0,y0,x1,y1]:
+            
+            dash.no_update
+        
+        Length=int(abs(x1 - x0))
+        Width=int(abs(y1 - y0))
+        
+        if Length < Width:
+            
+            Length, Width = Width, Length
+        
+        n=int(shape_nb)
+        
+        new_row[int(shape_nb)]['Fiber']=n
+        new_row[int(shape_nb)]['Type']=fiber
+        new_row[int(shape_nb)]['Length']=Length
+        new_row[int(shape_nb)]['Width']=Width
+        new_row[int(shape_nb)]['Segments']=imo.G_R_operation(x0, x1, y0, y1)
+
+    if s_coords is None:
+        
+        s_coords=[{'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1}]
+        
     else:
         
-        return None, None, None
+        s_coords.append({'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1})
+    
+    return new_row, shape_n, s_coords
 
 
 
@@ -1382,7 +1351,6 @@ def style_selected_rows(hover_data, shape_coords, cursor):
     if hover_data is not None:
         
         x0=hover_data["points"][0]["x"] ; y0=hover_data["points"][0]["y"]
-        bbox = hover_data["points"][0]["bbox"]
         
         for i in range(len(shape_coords)):
             
@@ -1405,7 +1373,7 @@ def style_selected_rows(hover_data, shape_coords, cursor):
                         children = [html.P([f"{shape_coords[i]['n'] + 100}"],
                                            className='flex-text_99-plus')]
                     
-                    return True, bbox, children
+                    return True, hover_data["points"][0]["bbox"], children
         
         return False, None, None
             
