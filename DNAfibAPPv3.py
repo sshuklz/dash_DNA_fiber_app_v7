@@ -88,7 +88,7 @@ for i in range(len(colors)):
         "label": html.Div([
             
             html.Img(src="/assets/Color_options/Label" +
-                     label_name, width = 260),
+                     label_name, width = 280,height = 30),
             
             html.Div(color_types[i],
                      style={'font-size':15,'padding-left':10}),
@@ -105,7 +105,7 @@ def fiber_dropdown_images(c1,c2,F):
 
     for i in range(6):
     
-        label_name = (DNA_fiber_types[i] + '_' + c1 + '_' + c2 + '_' + F + '.png')
+        label_name = (DNA_fiber_types[i] + '_' + c1 + '_' + c2 + F + '.png')
     
         fiber_options.append({
             
@@ -197,7 +197,7 @@ app.layout=html.Div([
                     children=[
                         
                         dcc.Tab(
-                            label='Label and Fiber Details',
+                            label='1 - Label Details',
                             value='color_tab',
                             
                             style={'borderBottom': '1px solid #d6d6d6',
@@ -243,7 +243,7 @@ app.layout=html.Div([
                         ),
                         
                         dcc.Tab(
-                            label='Image Operations',
+                            label='2 - Image Operations',
                             value='image_tab',
                             
                             style={'borderBottom': '1px solid #d6d6d6',
@@ -478,7 +478,7 @@ app.layout=html.Div([
                         ),
                     
                         dcc.Tab(
-                            label='Image Selections',
+                            label='3 - Image Selections',
                             value='select_tab',
                             
                             style={'borderBottom': '1px solid #d6d6d6',
@@ -828,7 +828,9 @@ def color_fiber_display(tab, color_selection):
     
     try:
         
-        return fiber_dropdown_images(colors[i][0], colors[i][1], colors[i][2])
+        return fiber_dropdown_images(colors[i][0], 
+                                     colors[i][1], 
+                                     '_' + colors[i][2])
         
     except:
         
