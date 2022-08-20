@@ -11,7 +11,6 @@ import cv2
 import base64
 import plotly.graph_objects as go
 from scipy import ndimage
-import imutils
 
 def blank_fig():
     
