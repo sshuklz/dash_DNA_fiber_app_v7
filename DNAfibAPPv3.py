@@ -56,10 +56,12 @@ color_types=['T0 Red : T1 Green',
             'T0 Green : T1 Blue : FISH Red',
             'T0 Blue : T1 Green : FISH Red']
 
+initial_active_cell = {"row": 0, "column": 0, "column_id": "Fiber"}
 
-
-colors=[['R','G'],['G','R'],['R','B'],['B','R'],['G','B'],['B','G'],
-        ['R','G','F'],['G','R','F'],['R','B','F'],['B','R','F'],['G','B','F'],['B','G','F']]
+colors=[['R','G'],['G','R'],['R','B'],
+        ['B','R'],['G','B'],['B','G'],
+        ['R','G','F'],['G','R','F'],['R','B','F'],
+        ['B','R','F'],['G','B','F'],['B','G','F']]
 
 df=pd.DataFrame(columns=['Fiber', 'Type', 'Length', 'Width', 'Segments'])
 
@@ -503,21 +505,8 @@ app.layout=html.Div([
                                         
                                         html.Div([
                                             
-                                            dmc.Tooltip(
-                                                withArrow=True,
-                                                position="bottom",
-                                                placement="start",
-                                                transition="fade",
-                                                transitionDuration=200,
-                                                arrowSize = 5,
-                                                label='Changes will reset data table',
-                                                
-                                                children=[
-                                                    
-                                                    html.H6('Selection type', 
-                                                            style={'paddingTop' : 15}),
-                                                    
-                                                ]),
+                                            html.H6('Selection type', 
+                                                    style={'paddingTop' : 15}),
                                             
                                             dcc.Dropdown(
                                                 ['Rectangle','Lasso','Line'],
@@ -536,31 +525,19 @@ app.layout=html.Div([
                                                 searchable=False,
                                                 id='fiber-dropdown'),
                                             
-                                            html.Div([
+                                            html.H6('Fiber overlay type',
+                                                    style={'paddingTop' : 10}),
                                             
-                                                dmc.Tooltip(
-                                                    wrapLines=True,
-                                                    width=540,
-                                                    withArrow=True,
-                                                    position="bottom",
-                                                    placement="end",
-                                                    transition="fade",
-                                                    transitionDuration=200,
-                                                    gutter = 10,
-                                                    arrowSize = 5,
-                                                    label=legend,
-                                                    
-                                                    children=[
-                                                        
-                                                        dmc.Button("Fiber table",
-                                                                   size='xl',
-                                                                   style={'width' : 230},
-                                                                   leftIcon=[DashIconify(
-                                                        icon="fluent:table-settings-28-filled")])
-                                                        
-                                                    ])
-                                            
-                                            ],style={'paddingTop' : 32})
+                                            dcc.Dropdown(
+                                                ['Selection','Segments','1º label',
+                                                 '2º label','Overlap','Binarized'],
+                                                'Selection', 
+                                                clearable=False,
+                                                searchable=False,
+                                                id='overlay-dropdown',
+                                                style={
+                                                       'marginBottom' : 0,
+                                                       'paddingTop' : 0})
                                             
                                         ], style={'width': '256px',
                                                   'paddingRight' : 20,
@@ -568,22 +545,9 @@ app.layout=html.Div([
                                         
                                         html.Div([
                                             
-                                            dmc.Tooltip(
-                                                withArrow=True,
-                                                position="bottom",
-                                                placement="start",
-                                                transition="fade",
-                                                transitionDuration=200,
-                                                arrowSize = 5,
-                                                label='Changes will reset data table',
-                                                
-                                                children=[
-                                                    
-                                                    html.H6('Border width', 
-                                                            style={'paddingTop' : 14}),
-                                                    
-                                                ]),
-                                            
+                                            html.H6('Border width', 
+                                                    style={'paddingTop' : 14}),
+     
                                             dbc.Input(type="number",
                                                       id="border_w",
                                                       min=0.25,
@@ -619,21 +583,8 @@ app.layout=html.Div([
                                         
                                         html.Div([
                                             
-                                            dmc.Tooltip(
-                                                withArrow=True,
-                                                position="bottom",
-                                                placement="start",
-                                                transition="fade",
-                                                transitionDuration=200,
-                                                arrowSize = 5,
-                                                label='Changes will reset data table',
-                                                
-                                                children=[
-                                                    
-                                                    html.H6('Border color', 
-                                                            style={'paddingTop' : 14}),
-                                                    
-                                                ]),
+                                            html.H6('Border color', 
+                                                    style={'paddingTop' : 14}),
                                             
                                             dbc.Input(
                                                 type="color",
@@ -687,10 +638,12 @@ app.layout=html.Div([
                                         ],
                                         editable=True,
                                         fill_width=True,
+                                        row_selectable  = 'single',
                                         page_action="native",
                                         page_current=0,
                                         page_size=8,
                                         style_data={"height": 15},
+                                        cell_selectable=False,
                                         style_cell={
                                             "textAlign": "left",
                                             "overflow": "hidden",
@@ -763,9 +716,10 @@ app.layout=html.Div([
                 html.H4(' ',
                         id='Selected_Fiber_Title', 
                         style={'textAlign' : 'center',
-                               'paddingBottom' : 15,
-                               'paddingTop' : 50,
-                               'paddingRight' : 20}),
+                               'marginBottom' : 25,
+                               'marginRight' : 0,
+                               'marginLeft' : 0,
+                               'paddingTop' : 50}),
                 
                 html.Div(
                     
@@ -773,7 +727,8 @@ app.layout=html.Div([
                               figure=blank_fig(),
                               config={'displayModeBar' : False})
                     
-                )
+                ),
+                
                 
             ], style={'width': '130px','paddingRight' : 20,'paddingLeft' : 0}
                 
@@ -1065,12 +1020,14 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
      Input('out-op-img', 'figure'),
      Input('fiber-dropdown', 'value'),
      Input('shape_coords', 'data'),
-     Input('shape_number', 'data')],
+     Input('shape_number', 'data'),
+     Input("color_label-dropdown", "value")],
     State("annotations-table", "data"),
     prevent_initial_call=True)
 
-def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row): 
+def shape_added(fig_data, fig, fiber, s_coords, shape_number, color_selection, new_row): 
 
+    
     if fig_data is None:
         
         return None, None, None
@@ -1078,6 +1035,18 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row):
     if fiber is None:
         
         return None, None, None
+    
+    i=color_types.index(color_selection)
+    
+    c1=colors[i][0] ; c2=colors[i][1]
+
+    try:
+        
+        F=colors[i][2]
+        
+    except:
+        
+        F=None
     
     nparr=np.frombuffer(
         base64.b64decode(fig['data'][0]['source'][22:]), np.uint8)
@@ -1103,10 +1072,13 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row):
         
         Length=int(abs(x1 - x0))
         Width=int(abs(y1 - y0))
-        
+             
         if Length < Width:
-            
+             
             Length, Width = Width, Length
+        
+        segments = imo.G_R_B_GP_OV_operation(c1,c2,F,fiber,x0,x1,y0,y1)
+        print(segments)
         
         if new_row is None:
         
@@ -1115,7 +1087,7 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row):
                         'Type':fiber, 
                         'Length': Length, 
                         'Width': Width, 
-                        'Segments':imo.G_R_operation(x0, x1, y0, y1)}]
+                        'Segments':segments[1]}]
             
         else:
             
@@ -1161,7 +1133,7 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row):
                         return new_row, len(fig_data["shapes"]), s_coords
                     
             if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
-                    Length, Width, imo.G_R_operation(x0, x1, y0, y1)]: #for fiber type change
+                    Length, Width, segments[1]]: #for fiber type change
                 
                 return dash.no_update
             
@@ -1171,7 +1143,7 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row):
                             'Type':fiber, 
                             'Length': Length, 
                             'Width': Width, 
-                            'Segments':imo.G_R_operation(x0, x1, y0, y1)})
+                            'Segments':segments[1]})
         
     elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
         
@@ -1221,12 +1193,13 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row):
             Length, Width = Width, Length
         
         n=int(shape_nb)
+        segments = imo.G_R_B_GP_OV_operation(c1,c2,F,fiber,x0,x1,y0,y1)
         
         new_row[int(shape_nb)]['Fiber']=n
         new_row[int(shape_nb)]['Type']=fiber
         new_row[int(shape_nb)]['Length']=Length
         new_row[int(shape_nb)]['Width']=Width
-        new_row[int(shape_nb)]['Segments']=imo.G_R_operation(x0, x1, y0, y1)
+        new_row[int(shape_nb)]['Segments']=segments[1]
 
     if s_coords is None:
         
@@ -1249,10 +1222,13 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, new_row):
      Input('image-processors-tabs', 'value'),
      Input('out-op-img', 'hoverData'),
      Input('shape_coords', 'data'),
-     Input("overlay-switch", "checked")],
+     Input("overlay-switch", "checked"),
+     Input('overlay-dropdown','value'),
+     Input('fiber-dropdown', 'value'),
+     Input("color_label-dropdown", "value")],
     prevent_initial_call=True)
 
-def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay): 
+def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay, overlay_type, fiber, color_selection): 
     
     if tab=='select_tab':
         
@@ -1296,6 +1272,18 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay)
         
             return blank_fig(),' ', style_data_conditional
         
+        i=color_types.index(color_selection)
+        
+        c1=colors[i][0] ; c2=colors[i][1]
+    
+        try:
+            
+            F=colors[i][2]
+            
+        except:
+            
+            F=None
+        
         nparr=np.frombuffer(base64.b64decode(fig['data'][0]['source'][22:]), 
                             np.uint8)
         
@@ -1304,25 +1292,55 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay)
         
         imo=ImageOperations(image_file_src=img)
         out_img=imo.read_operation()
-        
-        out_img = imo.crop_operation(x0,x1,y0,y1)
+        out_img, cmap = imo.crop_operation(c1,c2,F,overlay_type,x0,x1,y0,y1)
         
         if(x1-x0)>(y1-y0):
         
             out_img=skimage.transform.rotate(out_img,-90,resize=True)
         
-        out_image_fig=px.imshow(out_img)
+        out_image_fig=px.imshow(out_img,color_continuous_scale= cmap)
+        
+        # if overlay_type == 'Segments': 
+             
+        #     segments = out_img.G_R_B_GP_OV_operation(c1,c2,F,fiber,x0,x1,y0,y1)[0]
+        #     start = 0  
+            
+        #     for i in range(len(segments)):
+                
+        #         if segments[i][0] in [c1, c2]:
+             
+        #             color = segments[i][0]
+                    
+        #             if color == 'R':
+        #                 color = 'rgb(36,28,237)'
+                    
+        #             if color == 'G':
+        #                 color = 'rgb(81,166,0)'
+                    
+        #             if color == 'B':
+        #                 color = 'rgb(148,49,45)'
+                    
+        #             out_image_fig.add_shape(
+        #                 type='rect',
+        #                 x0=start, x1=start + segments[i][1], y0=y0, y1=y1,
+        #                 xref='x', yref='y',
+        #                 line_color=color)
+                      
+        #         start += segments[i][1] 
         
         out_image_fig.update_layout(height=750,
             coloraxis_showscale=False, 
             margin=dict(l=0, r=0, b=0, t=0))
         
         out_image_fig.update_layout(hovermode=False)
-        out_image_fig.update_xaxes(showticklabels=False)
-        out_image_fig.update_yaxes(showticklabels=False)
         out_image_fig.update_layout(dragmode=False)
+        out_image_fig.update_xaxes(showticklabels=False,
+                                   zerolinecolor = 'rgba(0,0,0,0)')
+        
+        out_image_fig.update_yaxes(showticklabels=False,
+                                   zerolinecolor = 'rgba(0,0,0,0)')
 
-        return out_image_fig, "Selected Fiber", style_data_conditional
+        return out_image_fig, "Fiber Overlay", style_data_conditional
     
     else:
         
@@ -1433,7 +1451,7 @@ def show_text_selection_title(tab):
     
     return " ", None
     
-
+ 
 
 if __name__=='__main__':
     app.run_server(debug=True)
