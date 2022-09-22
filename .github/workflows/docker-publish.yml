@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Get tag
-        uses: jimschubert/query-tag-action@v2
+        uses: jimschubert/query-tag-action@3ed7ce2db476c9ceb4be8fb46fcc1b99d1f02e54
         abbrev: 7
         id: tagger
 
