@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  push_to_registry:
+  docker_build_and_push:
     runs-on: ubuntu-latest
     steps:
       - name: Set env
