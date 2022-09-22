@@ -31,8 +31,8 @@ jobs:
         with:
           context: .
           push: true
-          tags:
-            - ${{ github.repository_owner }}/fiber-app:latest
-            - ${{ github.repository_owner }}/fiber-app:${{ steps.tagger.outputs.tag }}
+          tags: |
+            ${{ github.repository_owner }}/fiber-app:latest
+            ${{ github.repository_owner }}/fiber-app:${{ steps.tagger.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
