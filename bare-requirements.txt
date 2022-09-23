@@ -1,0 +1,12 @@
+dash
+dash_bootstrap_components
+dash_daq
+dash_iconify
+dash_mantine_components
+numpy
+pandas
+opencv-contrib-python-headless
+plotly
+scikit-image
+scipy
+gunicorn
