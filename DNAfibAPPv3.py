@@ -23,7 +23,6 @@ import pandas as pd
 import plotly.express as px
 import re
 from skimage import io
-import skimage.transform
 
 from ImageOPs import (ImageOperations, parse_contents, blank_fig)
 
@@ -84,7 +83,6 @@ for i in range(len(colors)):
         
         pass
         
-
     color_options.append({
         
         "label": html.Div([
@@ -142,6 +140,17 @@ fig.update_layout(dragmode=False)
 legend = ("Segments abbreviations: \n\nG = green, R = red, B = blue, "
           "F = FISH label, \nOV = overlap, GP = gap, : = new segment\n\n")
 
+def svg_path_to_xy(path_string):
+    # Parse the SVG path string and extract the polygon points
+    points = re.findall(r'[ML]([\d\.]+),([\d\.]+)', path_string)
+    # Convert the polygon points to XY coordinates
+    xy_coordinates = [(float(x), float(y)) for x, y in points]
+    # Return a list of X and Y coordinates
+    x_coordinates, y_coordinates = zip(*xy_coordinates)
+    x_min, x_max = min(x_coordinates), max(x_coordinates)
+    y_min, y_max = min(y_coordinates), max(y_coordinates)
+    return int(x_min), int(x_max), int(y_min), int(y_max)
+
 app.layout=html.Div([
     
         html.Meta(charSet='UTF-8'),
@@ -153,11 +162,6 @@ app.layout=html.Div([
         dcc.Store(id='im_sliders', storage_type='memory', data = [0,0,0,1,1,0]),
         dcc.Store(id='im_rotation', storage_type='memory', data = 0),
         dcc.Store(id='im_flip', storage_type='memory', data = [False,False]),
-        
-        dcc.Download(id="download-dataframe-csv"),
-        dcc.Download(id="download-plot-Image"),
-        dcc.Download(id="download-sel-current"),
-        dcc.Download(id="download-sel-all"),
 
         html.Div([
             
@@ -638,7 +642,6 @@ app.layout=html.Div([
                                         ],
                                         editable=True,
                                         fill_width=True,
-                                        row_selectable  = 'single',
                                         page_action="native",
                                         page_current=0,
                                         page_size=8,
@@ -648,8 +651,21 @@ app.layout=html.Div([
                                             "textAlign": "left",
                                             "overflow": "hidden",
                                             "textOverflow": "ellipsis",
-                                            "maxWidth": 0,
-                                        }
+                                        },
+                                        
+                                        style_data_conditional=[
+                                            {'if': {'column_id': 'Fiber'},
+                                                 'width': '5%'},
+                                            {'if': {'column_id': 'Type'},
+                                                 'width': '15%'},
+                                            {'if': {'column_id': 'Length'},
+                                                 'width': '5%'},
+                                            {'if': {'column_id': 'Width'},
+                                                 'width': '5%'},
+                                            {'if': {'column_id': 'Segments'},
+                                                 'width': '70%'},
+                                        ]
+                                        
                                     
                                     ),
                                     
@@ -671,11 +687,6 @@ app.layout=html.Div([
         html.Div(
                 
             children=[
-                
-                html.H4('Image Used - Output', style={"textAlign": "center",
-                                                      'paddingBottom' : 50,
-                                                      'paddingTop' : 50,
-                                                      'paddingRight' : 25}),
                 
                 html.Div([
                 
@@ -701,36 +712,21 @@ app.layout=html.Div([
                                          'width':25,
                                          'font-size': 14}),
                 
-                ],style={'paddingRight' : 25}),
+                ],style={'marginTop':60,'marginRight':150}),
                 
-                html.Div(id='download  div'),
-
-            ]
-                
-        ),
-        
-        html.Div(
-                
-            children=[
-                
-                html.H4(' ',
-                        id='Selected_Fiber_Title', 
-                        style={'textAlign' : 'center',
-                               'marginBottom' : 25,
-                               'marginRight' : 0,
-                               'marginLeft' : 0,
-                               'paddingTop' : 50}),
-                
-                html.Div(
+                html.Div([
                     
                     dcc.Graph(id='sel-op-img', 
                               figure=blank_fig(),
                               config={'displayModeBar' : False})
                     
-                ),
+                ],style={'width': '1000px', 'height':'130px', 'marginTop':10,
+                         'marginBottom':10, 'paddingRight' : 0,'paddingLeft' : 0}),
                 
+                html.Div(id='download div'),
                 
-            ], style={'width': '130px','paddingRight' : 20,'paddingLeft' : 0}
+
+            ]
                 
         )
         
@@ -768,8 +764,6 @@ def color_fiber_display(tab, color_selection):
         return fiber_dropdown_images(colors[i][0], colors[i][1], '')
     
     
-
-
 
 @app.callback(
     Output('schema', 'src'),
@@ -1019,14 +1013,15 @@ def get_operated_image(contents, sliders, color_selection, gam, RC, GC, BC, DI, 
     [Input('out-op-img', 'relayoutData'),
      Input('out-op-img', 'figure'),
      Input('fiber-dropdown', 'value'),
+     Input('method-dropdown','value'),
+     Input('max_fw','value'),
      Input('shape_coords', 'data'),
      Input('shape_number', 'data'),
      Input("color_label-dropdown", "value")],
     State("annotations-table", "data"),
     prevent_initial_call=True)
 
-def shape_added(fig_data, fig, fiber, s_coords, shape_number, color_selection, new_row): 
-
+def shape_added(fig_data, fig, fiber, select_type, max_fw, s_coords, shape_number, color_selection, new_row): 
     
     if fig_data is None:
         
@@ -1042,7 +1037,7 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, color_selection, n
 
     try:
         
-        F=colors[i][2]
+        F=colors[i][2] 
         
     except:
         
@@ -1055,167 +1050,543 @@ def shape_added(fig_data, fig, fiber, s_coords, shape_number, color_selection, n
     img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     imo=ImageOperations(image_file_src=img)
     
-    if 'shapes' in fig_data:
-        
-        shape_n = len(fig_data["shapes"])
-        
-        x0, y0=int(fig_data["shapes"][-1]["x0"]), int(fig_data["shapes"][-1]["y0"])
-        x1, y1=int(fig_data["shapes"][-1]["x1"]), int(fig_data["shapes"][-1]["y1"])
-        
-        if x0 > x1:
-            
-            x0, x1 = x1, x0
-            
-        if y0 > y1:
-            
-            y0, y1 = y1, y0
-        
-        Length=int(abs(x1 - x0))
-        Width=int(abs(y1 - y0))
-             
-        if Length < Width:
-             
-            Length, Width = Width, Length
-        
-        segments = imo.G_R_B_GP_OV_operation(c1,c2,F,fiber,x0,x1,y0,y1)
-        print(segments)
-        
-        if new_row is None:
-        
-            n=0
-            new_row=[{'Fiber':n, 
-                        'Type':fiber, 
-                        'Length': Length, 
-                        'Width': Width, 
-                        'Segments':segments[1]}]
-            
-        else:
-            
-            if shape_n < shape_number: #for annotation deletion
-                
-                shape_coord=[]; table_coord=[]
-                
-                for shape in fig_data["shapes"]:
-                    
-                    x0, y0=int(shape["x0"]), int(shape["y0"])
-                    x1, y1=int(shape["x1"]), int(shape["y1"])
-                    
-                    if x0 > x1:
-                        
-                        x0, x1=x1, x0
-                        
-                    if y0 > y1:
-                        
-                        y0, y1=y1, y0
-                    
-                    shape_coord +=[[x0,x1,y0,y1]]
-                
-                for coord in s_coords:
-                        
-                    table_coord +=[[coord['x0'],
-                                     coord['x1'],
-                                     coord['y0'],
-                                     coord['y1']]]
-                        
-                for i in table_coord:
-                    
-                    if i not in shape_coord:
-                        
-                        x0=i[0] ; x1=i[1] ; y0=i[2] ; y1=i[3]
-                        
-                for coord in s_coords:
-                    
-                    if [coord['x0'],coord['x1'],coord['y0'],coord['y1']]==[x0,x1,y0,y1]:
-                        
-                        new_row=list(filter(lambda i: i['Fiber'] !=coord['n'], new_row))
-                        s_coords=list(filter(lambda i: i['n'] !=coord['n'], s_coords))
+    
 
-                        return new_row, len(fig_data["shapes"]), s_coords
-                    
-            if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
-                    Length, Width, segments[1]]: #for fiber type change
+    if select_type == 'Rectangle':
+    
+        if 'shapes' in fig_data:
+
+            shape_n = len(fig_data["shapes"])
+            
+            x0, y0=int(fig_data["shapes"][-1]["x0"]), int(fig_data["shapes"][-1]["y0"])
+            x1, y1=int(fig_data["shapes"][-1]["x1"]), int(fig_data["shapes"][-1]["y1"])
+            
+            if x0 > x1:
                 
-                return dash.no_update
+                x0, x1 = x1, x0
+                
+            if y0 > y1:
+                
+                y0, y1 = y1, y0
+                    
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
             
-            n=new_row[-1]['Fiber'] + 1
+            if Length < Width:
+                
+                Length, Width = Width, Length
+                
+            out_img = imo.read_operation()
+            out_img, cmap = imo.crop_operation(c1,c2,F,'Segments',x0,x1,y0,y1)
             
-            new_row.append({'Fiber':n, 
+            if(x1-x0)<(y1-y0):
+                
+                out_img = ImageOperations(image_file_src=out_img)
+                out_img = out_img.transform_operation(90,[False,False],1,1,0)
+            
+            out_img = ImageOperations(image_file_src=out_img)
+            
+            if new_row is None:
+            
+                n=0
+                new_row=[{'Fiber':n, 
                             'Type':fiber, 
                             'Length': Length, 
                             'Width': Width, 
-                            'Segments':segments[1]})
-        
-    elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
-        
-        shape_n = shape_number
-        
-        for key, val in fig_data.items():
-            
-            shape_nb, coord=key.split(".")
-            shape_nb=shape_nb.split(".")[0].split("[")[-1].split("]")[0]
-            
-            if coord=='x0':
+                            'Segments':out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]}]
                 
-                x0=int(fig_data[key])
+            else:
                 
-            elif coord=='x1':
+                if shape_n < shape_number: #for annotation deletion
+                    
+                    shape_coord=[]; table_coord=[]
+                    
+                    for shape in fig_data["shapes"]:
+                        
+                        x0, y0=int(shape["x0"]), int(shape["y0"])
+                        x1, y1=int(shape["x1"]), int(shape["y1"])
+                        
+                        if x0 > x1:
+                            
+                            x0, x1=x1, x0
+                            
+                        if y0 > y1:
+                            
+                            y0, y1=y1, y0
+                        
+                        shape_coord +=[[x0,x1,y0,y1]]
+                    
+                    for coord in s_coords:
+                            
+                        table_coord +=[[coord['x0'],
+                                         coord['x1'],
+                                         coord['y0'],
+                                         coord['y1']]]
+                            
+                    for i in table_coord:
+                        
+                        if i not in shape_coord:
+                            
+                            x0=i[0] ; x1=i[1] ; y0=i[2] ; y1=i[3]
+                            
+                    for coord in s_coords:
+                        
+                        if [coord['x0'],coord['x1'],coord['y0'],coord['y1']]==[x0,x1,y0,y1]:
+                            
+                            new_row=list(filter(lambda i: i['Fiber'] !=coord['n'], new_row))
+                            s_coords=list(filter(lambda i: i['n'] !=coord['n'], s_coords))
+        
+                            return new_row, len(fig_data["shapes"]), s_coords
                 
-                x1=int(fig_data[key])
-            
-            elif coord=='y0':
+                out_img = imo.read_operation()
+                out_img, cmap = imo.crop_operation(c1,c2,F,'Segments',x0,x1,y0,y1)
                 
-                y0=int(fig_data[key])
-            
-            elif coord=='y1':
+                if(x1-x0)<(y1-y0):
+                    
+                    out_img = ImageOperations(image_file_src=out_img)
+                    out_img = out_img.transform_operation(90,[False,False],1,1,0)        
                 
-                y1=int(fig_data[key])
-        
-        if x0 > x1:
+                out_img=ImageOperations(image_file_src=out_img)
+                
+                if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
+                        Length, Width, out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]]: #for fiber type change
+                    
+                    return dash.no_update
+                
+                n=new_row[-1]['Fiber'] + 1
+                
+                new_row.append({'Fiber':n, 
+                                'Type':fiber, 
+                                'Length': Length, 
+                                'Width': Width, 
+                                'Segments':out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]})
+                        
+        elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
             
-            x0, x1=x1, x0
+            shape_n = shape_number
             
-        if y0 > y1:
+            for key, val in fig_data.items():
+                
+                shape_nb, coord=key.split(".")
+                shape_nb=shape_nb.split(".")[0].split("[")[-1].split("]")[0]
+                
+                if coord=='x0':
+                    
+                    x0=int(fig_data[key])
+                    
+                elif coord=='x1':
+                    
+                    x1=int(fig_data[key])
+                
+                elif coord=='y0':
+                    
+                    y0=int(fig_data[key])
+                
+                elif coord=='y1':
+                    
+                    y1=int(fig_data[key])
             
-            y0, y1=y1, y0
-        
-        if [s_coords[-1]['x0'],
-            s_coords[-1]['y0'],
-            s_coords[-1]['x1'],
-            s_coords[-1]['y1']]  == [x0,y0,x1,y1]:
+            if x0 > x1:
+                
+                x0, x1=x1, x0
+                
+            if y0 > y1:
+                
+                y0, y1=y1, y0
+                
+            out_img = imo.read_operation()
+            out_img, cmap = imo.crop_operation(c1,c2,F,'Segments',x0,x1,y0,y1)
             
-            dash.no_update
-        
-        Length=int(abs(x1 - x0))
-        Width=int(abs(y1 - y0))
-        
-        if Length < Width:
+            if(x1-x0)<(y1-y0):
+                
+                out_img = ImageOperations(image_file_src=out_img)
+                out_img = out_img.transform_operation(90,[False,False],1,1,0)
+                
+            out_img=ImageOperations(image_file_src=out_img)
             
-            Length, Width = Width, Length
+            if [s_coords[-1]['x0'],
+                s_coords[-1]['y0'],
+                s_coords[-1]['x1'],
+                s_coords[-1]['y1']]  == [x0,y0,x1,y1]:
+                
+                dash.no_update
+            
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
+            
+            if Length < Width:
+                
+                Length, Width = Width, Length
+            
+            n=int(shape_nb)
+            
+            new_row[int(shape_nb)]['Fiber']=n
+            new_row[int(shape_nb)]['Type']=fiber
+            new_row[int(shape_nb)]['Length']=Length
+            new_row[int(shape_nb)]['Width']=Width
+            new_row[int(shape_nb)]['Segments']=out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]
         
-        n=int(shape_nb)
-        segments = imo.G_R_B_GP_OV_operation(c1,c2,F,fiber,x0,x1,y0,y1)
-        
-        new_row[int(shape_nb)]['Fiber']=n
-        new_row[int(shape_nb)]['Type']=fiber
-        new_row[int(shape_nb)]['Length']=Length
-        new_row[int(shape_nb)]['Width']=Width
-        new_row[int(shape_nb)]['Segments']=segments[1]
+        if s_coords is None:
+            
+            s_coords=[{'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1}]
+            
+        else:
+            
+            s_coords.append({'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1})
+            
+            
+            
+    
+    if select_type == 'Line':
+    
+        if 'shapes' in fig_data:
 
-    if s_coords is None:
+            shape_n = len(fig_data["shapes"])
+            
+            x0, y0=int(fig_data["shapes"][-1]["x0"]), int(fig_data["shapes"][-1]["y0"])
+            x1, y1=int(fig_data["shapes"][-1]["x1"]), int(fig_data["shapes"][-1]["y1"])
+            
+            if x0 > x1:
+                
+                x0, x1 = x1, x0
+                
+            if y0 > y1:
+                
+                y0, y1 = y1, y0
+                    
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
+            
+            if Length < Width:
+                
+                Length, Width = Width, Length
+                
+                if Width < max_fw / 2:
+                
+                    x0 -= int(max_fw / 2)
+                    x1 += int(max_fw / 2)
+                    Length=int(abs(x1 - x0))
+                    Width=int(abs(y1 - y0))
+                    Length, Width = Width, Length
+                
+            if Width < max_fw / 2:
+                
+                y0 -= int(max_fw / 2)
+                y1 += int(max_fw / 2)
+                Length=int(abs(x1 - x0))
+                Width=int(abs(y1 - y0))
+                
+            out_img = imo.read_operation()
+            out_img, cmap = imo.crop_operation(c1,c2,F,'Segments',x0,x1,y0,y1)
+            
+            if(x1-x0)<(y1-y0):
+                
+                out_img = ImageOperations(image_file_src=out_img)
+                out_img = out_img.transform_operation(90,[False,False],1,1,0)
+                
+            out_img=ImageOperations(image_file_src=out_img)
+            
+            if new_row is None:
+            
+                n=0
+                new_row=[{'Fiber':n, 
+                            'Type':fiber, 
+                            'Length': Length, 
+                            'Width': Width, 
+                            'Segments':out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]}]
+                
+            else:
+                
+                if shape_n < shape_number: #for annotation deletion
+                    
+                    shape_coord=[]; table_coord=[]
+                    
+                    for shape in fig_data["shapes"]:
+                        
+                        x0, y0=int(shape["x0"]), int(shape["y0"])
+                        x1, y1=int(shape["x1"]), int(shape["y1"])
+                        
+                        if x0 > x1:
+                            
+                            x0, x1=x1, x0
+                            
+                        if y0 > y1:
+                            
+                            y0, y1=y1, y0
+                        
+                        shape_coord +=[[x0,x1,y0,y1]]
+                    
+                    for coord in s_coords:
+                            
+                        table_coord +=[[coord['x0'],
+                                         coord['x1'],
+                                         coord['y0'],
+                                         coord['y1']]]
+                            
+                    for i in table_coord:
+                        
+                        if i not in shape_coord:
+                            
+                            x0=i[0] ; x1=i[1] ; y0=i[2] ; y1=i[3]
+                            
+                    for coord in s_coords:
+                        
+                        if [coord['x0'],coord['x1'],coord['y0'],coord['y1']]==[x0,x1,y0,y1]:
+                            
+                            new_row=list(filter(lambda i: i['Fiber'] !=coord['n'], new_row))
+                            s_coords=list(filter(lambda i: i['n'] !=coord['n'], s_coords))
         
-        s_coords=[{'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1}]
+                            return new_row, len(fig_data["shapes"]), s_coords
+                        
+                if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
+                        Length, Width, out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]]: #for fiber type change
+                    
+                    return dash.no_update
+                
+                n=new_row[-1]['Fiber'] + 1
+                
+                new_row.append({'Fiber':n, 
+                                'Type':fiber, 
+                                'Length': Length, 
+                                'Width': Width, 
+                                'Segments':out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]})
+                        
+        elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
+            
+            shape_n = shape_number
+            
+            for key, val in fig_data.items():
+                
+                shape_nb, coord=key.split(".")
+                shape_nb=shape_nb.split(".")[0].split("[")[-1].split("]")[0]
+                
+                if coord=='x0':
+                    
+                    x0=int(fig_data[key])
+                    
+                elif coord=='x1':
+                    
+                    x1=int(fig_data[key])
+                
+                elif coord=='y0':
+                    
+                    y0=int(fig_data[key])
+                
+                elif coord=='y1':
+                    
+                    y1=int(fig_data[key])
+            
+            if x0 > x1:
+                
+                x0, x1=x1, x0
+                
+            if y0 > y1:
+                
+                y0, y1=y1, y0
+            
+            if [s_coords[-1]['x0'],
+                s_coords[-1]['y0'],
+                s_coords[-1]['x1'],
+                s_coords[-1]['y1']]  == [x0,y0,x1,y1]:
+                
+                dash.no_update
+            
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
+            
+            if Length < Width:
+                
+                Length, Width = Width, Length
+            
+            n=int(shape_nb)
+            
+            new_row[int(shape_nb)]['Fiber']=n
+            new_row[int(shape_nb)]['Type']=fiber
+            new_row[int(shape_nb)]['Length']=Length
+            new_row[int(shape_nb)]['Width']=Width
+            new_row[int(shape_nb)]['Segments']=out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]
         
-    else:
+        if s_coords is None:
+            
+            s_coords=[{'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1}]
+            
+        else:
+            
+            s_coords.append({'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1})
+            
+            
+    
+    if select_type == 'Lasso':
+    
+        if 'shapes' in fig_data:
+
+            shape_n = len(fig_data["shapes"])
+            
+            path =fig_data["shapes"][-1]['path']
+            
+            x0, x1, y0, y1 = svg_path_to_xy(path)
+            print(x0,x1,y0,y1)
+            
+            if x0 > x1:
+                
+                x0, x1 = x1, x0
+                
+            if y0 > y1:
+                
+                y0, y1 = y1, y0
+                    
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
+            
+            if Length < Width:
+                
+                Length, Width = Width, Length
+                
+            out_img = imo.read_operation()
+            out_img, cmap = imo.crop_operation(c1,c2,F,'Segments',x0,x1,y0,y1)
+            
+            if(x1-x0)<(y1-y0):
+                
+                out_img = ImageOperations(image_file_src=out_img)
+                out_img = out_img.transform_operation(90,[False,False],1,1,0)
+                
+            out_img=ImageOperations(image_file_src=out_img)
+            
+            if new_row is None:
+            
+                n=0
+                new_row=[{'Fiber':n, 
+                            'Type':fiber, 
+                            'Length': Length, 
+                            'Width': Width, 
+                            'Segments':out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]}]
+                
+            else:
+                
+                if shape_n < shape_number: #for annotation deletion
+                    
+                    shape_coord=[]; table_coord=[]
+                    
+                    for shape in fig_data["shapes"]:
+                        
+                        x0, y0=int(shape["x0"]), int(shape["y0"])
+                        x1, y1=int(shape["x1"]), int(shape["y1"])
+                        
+                        if x0 > x1:
+                            
+                            x0, x1=x1, x0
+                            
+                        if y0 > y1:
+                            
+                            y0, y1=y1, y0
+                        
+                        shape_coord +=[[x0,x1,y0,y1]]
+                    
+                    for coord in s_coords:
+                            
+                        table_coord +=[[coord['x0'],
+                                         coord['x1'],
+                                         coord['y0'],
+                                         coord['y1']]]
+                            
+                    for i in table_coord:
+                        
+                        if i not in shape_coord:
+                            
+                            x0=i[0] ; x1=i[1] ; y0=i[2] ; y1=i[3]
+                            
+                    for coord in s_coords:
+                        
+                        if [coord['x0'],coord['x1'],coord['y0'],coord['y1']]==[x0,x1,y0,y1]:
+                            
+                            new_row=list(filter(lambda i: i['Fiber'] !=coord['n'], new_row))
+                            s_coords=list(filter(lambda i: i['n'] !=coord['n'], s_coords))
         
-        s_coords.append({'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1})
+                            return new_row, len(fig_data["shapes"]), s_coords
+                        
+                if [new_row[-1]['Length'], new_row[-1]['Width'], new_row[-1]['Segments']] == [
+                        Length, Width, out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]]: #for fiber type change
+                    
+                    return dash.no_update
+                
+                n=new_row[-1]['Fiber'] + 1
+                
+                new_row.append({'Fiber':n, 
+                                'Type':fiber, 
+                                'Length': Length, 
+                                'Width': Width, 
+                                'Segments':out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]})
+                        
+        elif re.match("shapes\[[0-9]+\].x0", list(fig_data.keys())[0]):
+            
+            shape_n = shape_number
+            
+            for key, val in fig_data.items():
+                
+                shape_nb, coord=key.split(".")
+                shape_nb=shape_nb.split(".")[0].split("[")[-1].split("]")[0]
+                
+                if coord=='x0':
+                    
+                    x0=int(fig_data[key])
+                    
+                elif coord=='x1':
+                    
+                    x1=int(fig_data[key])
+                
+                elif coord=='y0':
+                    
+                    y0=int(fig_data[key])
+                
+                elif coord=='y1':
+                    
+                    y1=int(fig_data[key])
+            
+            if x0 > x1:
+                
+                x0, x1=x1, x0
+                
+            if y0 > y1:
+                
+                y0, y1=y1, y0
+            
+            if [s_coords[-1]['x0'],
+                s_coords[-1]['y0'],
+                s_coords[-1]['x1'],
+                s_coords[-1]['y1']]  == [x0,y0,x1,y1]:
+                
+                dash.no_update
+            
+            Length=int(abs(x1 - x0))
+            Width=int(abs(y1 - y0))
+            
+            if Length < Width:
+                
+                Length, Width = Width, Length
+            
+            n=int(shape_nb)
+            
+            new_row[int(shape_nb)]['Fiber']=n
+            new_row[int(shape_nb)]['Type']=fiber
+            new_row[int(shape_nb)]['Length']=Length
+            new_row[int(shape_nb)]['Width']=Width
+            new_row[int(shape_nb)]['Segments']=out_img.G_R_B_GP_OV_operation(c1,c2,None,fiber,None,None,None,None)[1]
+        
+        if s_coords is None:
+            
+            s_coords=[{'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1}]
+            
+        else:
+            
+            s_coords.append({'n':n, 'x0':x0, 'y0': y0, 'x1': x1, 'y1':y1})
+            
     
     return new_row, shape_n, s_coords
 
 
 
 @app.callback(
-    Output('sel-op-img', 'figure'), 
-    Output('Selected_Fiber_Title', 'children'),
+    Output('sel-op-img', 'figure'),
     Output("annotations-table", "style_data_conditional"),
     [Input('out-op-img', 'relayoutData'),
      Input('out-op-img', 'figure'),
@@ -1270,7 +1641,7 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay,
         
         if overlay is False:
         
-            return blank_fig(),' ', style_data_conditional
+            return blank_fig(), style_data_conditional
         
         i=color_types.index(color_selection)
         
@@ -1289,62 +1660,68 @@ def selection_fiber_image(fig_data, fig, tab, hover_data, shape_coords, overlay,
         
         img=cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
         imo=ImageOperations(image_file_src=img)
-        out_img=imo.read_operation()
+        
+        out_img =imo.read_operation()
         out_img, cmap = imo.crop_operation(c1,c2,F,overlay_type,x0,x1,y0,y1)
         
-        if(x1-x0)>(y1-y0):
-        
-            out_img=skimage.transform.rotate(out_img,-90,resize=True)
+        if(x1-x0)<(y1-y0):
+            
+            out_img=ImageOperations(image_file_src=out_img)
+            out_img=out_img.transform_operation(90,[False,False],1,1,0)
         
         out_image_fig=px.imshow(out_img,color_continuous_scale= cmap)
         
-        # if overlay_type == 'Segments': 
-             
-        #     segments = out_img.G_R_B_GP_OV_operation(c1,c2,F,fiber,x0,x1,y0,y1)[0]
-        #     start = 0  
+        if overlay_type == 'Segments': 
             
-        #     for i in range(len(segments)):
-                
-        #         if segments[i][0] in [c1, c2]:
+            out_img=ImageOperations(image_file_src=out_img)
+            segments = out_img.G_R_B_GP_OV_operation(c1,c2,F,fiber,None,None,None,None)[0]
+            print(out_img.G_R_B_GP_OV_operation(c1,c2,F,fiber,None,None,None,None)[1])
+            x0,x1,y0,y1 = out_img.G_R_B_GP_OV_operation(c1,c2,F,fiber,None,None,None,None)[2]
+            start = 0  
              
-        #             color = segments[i][0]
+            for i in range(len(segments)):
+                
+                if segments[i][0] in [c1, c2]:
+             
+                    color = segments[i][0]
                     
-        #             if color == 'R':
-        #                 color = 'rgb(36,28,237)'
+                    if color == 'R':
+                        color = 'rgb(237,36,28,36)'
                     
-        #             if color == 'G':
-        #                 color = 'rgb(81,166,0)'
+                    if color == 'G':
+                        color = 'rgb(0,166,81)'
                     
-        #             if color == 'B':
-        #                 color = 'rgb(148,49,45)'
+                    if color == 'B':
+                        color = 'rgb(45,49,148)'
                     
-        #             out_image_fig.add_shape(
-        #                 type='rect',
-        #                 x0=start, x1=start + segments[i][1], y0=y0, y1=y1,
-        #                 xref='x', yref='y',
-        #                 line_color=color)
+                    out_image_fig.add_shape(
+                        type='rect',
+                        x0=start, x1=start + segments[i][1], y0=y0, y1=y1,
+                        xref='x', yref='y',
+                        line_color=color,
+                        fillcolor=color,
+                        opacity=0.25)
                       
-        #         start += segments[i][1] 
+                start += segments[i][1] 
         
-        out_image_fig.update_layout(height=750,
+        out_image_fig.update_layout(height=130,
             coloraxis_showscale=False, 
             margin=dict(l=0, r=0, b=0, t=0))
         
         out_image_fig.update_layout(hovermode=False)
         out_image_fig.update_layout(dragmode=False)
-        out_image_fig.update_xaxes(showticklabels=False,
-                                   zerolinecolor = 'rgba(0,0,0,0)')
+        out_image_fig.update_xaxes(showticklabels=True,
+                                    zerolinecolor = 'rgba(0,0,0,0)')
         
-        out_image_fig.update_yaxes(showticklabels=False,
-                                   zerolinecolor = 'rgba(0,0,0,0)')
+        out_image_fig.update_yaxes(showticklabels=True,
+                                    zerolinecolor = 'rgba(0,0,0,0)')
 
-        return out_image_fig, "Fiber Overlay", style_data_conditional
+        return out_image_fig, style_data_conditional
     
     else:
         
-        return blank_fig(), ' ', [] 
+        return blank_fig(), [] 
         
     
     
@@ -1402,14 +1779,19 @@ def style_selected_rows(hover_data, shape_coords, cursor):
 
 
 @app.callback(
-    Output('download  div', 'children'), 
+    Output('download div', 'children'), 
     Input('image-processors-tabs', 'value'))
 
-def show_text_selection_title(tab):
+def download_selection(tab):
     
     if tab=='select_tab':
         
         return  html.Div([
+            
+            dcc.Download(id="download-dataframe-csv"),
+            dcc.Download(id="download-plot-Image"),
+            dcc.Download(id="download-sel-current"),
+            dcc.Download(id="download-sel-all"),
             
             dmc.Group(grow = True, spacing = 'xs', children =[
 
@@ -1445,13 +1827,52 @@ def show_text_selection_title(tab):
                                 icon="akar-icons:download")
                             ])
                 
-            ],style = {'width' : 996, 'paddingTop': 5, 'justify-content': 'center'})
+                ],style = {'width' : 996, 'paddingTop': 5, 'justify-content': 'center'})
 
         ])
     
     return " ", None
     
- 
+
+
+@app.callback(
+    Output("download-dataframe-csv", "data"),
+    Input("btn_csv", "n_clicks"),
+    State("annotations-table", "data"),
+    State('upload-image', 'filename'),
+    prevent_initial_call=True
+)
+
+def download_files(n_clicks,data,filename):
+    
+    df = pd.DataFrame.from_records(data)
+    
+    for index, row in df.iterrows():
+        
+        n = 0 
+        pairs = row['Segments'].split()
+        color_value_pairs = []
+        
+        for i in range(0, len(pairs), 2):
+            color_code = pairs[i]
+            value = pairs[i+1]
+            color_value_pairs.append((color_code, value))
+        
+        print(color_value_pairs)
+        
+        for color, quantity in color_value_pairs:
+           
+            if color == 'R' or color == 'G' or color == 'B':
+                
+                n += 1
+                
+                df.at[index, 'Segment ' + color + str(n)] = quantity
+    
+        
+    
+    return dcc.send_data_frame(df.to_csv, filename[0][:-4] + "_fiber_annotations.csv") 
+
+
 
 if __name__=='__main__':
     app.run_server(debug=True)
