@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+
 """
 Created on Tue Jul 19 16:00:28 2022
 
@@ -167,7 +166,7 @@ class ImageOperations(object):
                 
                 tracks[:,:,0] = np.zeros([tracks.shape[0], tracks.shape[1]])
         
-        if overlay_type == 'Selection':
+        if overlay_type == 'Selection' or overlay_type == 'Segments':
             
             return tracks, None
         
@@ -287,13 +286,14 @@ class ImageOperations(object):
         return 
         
     def G_R_B_GP_OV_operation(self, c1,c2,c3, DNA_fiber_type, x0, x1, y0, y1):
-        
+            
         image_src = self.image_file_src
-        image_src = image_src[y0:y1 , x0:x1]
         
+        if x0 != None:
+            
+            image_src = image_src[y0:y1 , x0:x1]
+         
         tracks = (image_src[:,:,:3])
-                
-        tracks = (tracks[:,:,:3])
         length = tracks.shape[0]
         width = tracks.shape[1]
         
@@ -453,7 +453,7 @@ class ImageOperations(object):
                 
                 if onehotRGB_1d_trim[i][0] == c1 or onehotRGB_1d_trim[i][0] == c2:
                     
-                    if onehotRGB_1d_trim[i][1] <= 5:
+                    if onehotRGB_1d_trim[i][1] <= 3:
                         
                         onehotRGB_1d_trim[i][0] = 'GP'
                         
@@ -793,4 +793,7 @@ class ImageOperations(object):
             
             pass
 
-        return color_len_str, hc_list
+        return (onehotRGB_1d_trim, 
+                "\n".join([" ".join([str(item) for item in sublist]) for sublist in onehotRGB_1d_trim]),
+                [x0,x1,y0,y1])
+        
